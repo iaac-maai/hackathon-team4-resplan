@@ -104,9 +104,15 @@ Model selection is based on validation performance, while the test set is used f
 
 ### Training performance
 
+**CVAE z32**
+
 ![CVAE z32 training history](figures/CVAE_z32_training_history.png)
 
+**CVAE z64**
+
 ![CVAE z64 training history](figures/CVAE_z64_training_history.png)
+
+**CVAE z128**
 
 ![CVAE z128 training history](figures/CVAE_z128_training_history.png)
 
@@ -118,7 +124,7 @@ The model captures some room configurations and spatial patterns. However, recon
 
 ### Latent interpolation
 
-![VAE latent interpolation](figures/cvae_z64_latent_blend.png)
+![CVAE latent interpolation](figures/cvae_z64_latent_blend.png)
 
 Latent interpolation explores transitions between learned floor-plan representations. This demonstrates the model's potential as a generative design exploration tool.
 
