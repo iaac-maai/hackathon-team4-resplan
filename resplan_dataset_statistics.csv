@@ -1,0 +1,23 @@
+Field,Available Plans,Missing Plans,Availability (%)
+bathroom,17000,0,100.0
+door,17000,0,100.0
+inner,17000,0,100.0
+garden,17000,0,100.0
+wall,17000,0,100.0
+parking,17000,0,100.0
+wall_depth,17000,0,100.0
+neighbor,17000,0,100.0
+land,17000,0,100.0
+id,17000,0,100.0
+living,17000,0,100.0
+net_area,17000,0,100.0
+area,17000,0,100.0
+pool,16999,1,99.99
+bedroom,16997,3,99.98
+front_door,16995,5,99.97
+window,16950,50,99.71
+kitchen,16875,125,99.26
+balcony,13066,3934,76.86
+storage,1781,15219,10.48
+stair,685,16315,4.03
+area_change_sqft,683,16317,4.02

@@ -28,3 +28,9 @@ Thumbs.db
 .env
 .dev.vars
 kaggle.json
+
+# Python and data
+.venv/
+*.pkl
+__pycache__/
+.ipynb_checkpoints/
