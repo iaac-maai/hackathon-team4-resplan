@@ -4,7 +4,7 @@ IAAC MaAI – AI Methods hackathon, 16–20 November 2026.
 
 ## Team
 
-- Team 4: *(add the names of the team members)*
+- Team 4: Fawad, Hetashree, Daria, Luis
 
 # ResPlan — Conditional Variational Autoencoder
 
