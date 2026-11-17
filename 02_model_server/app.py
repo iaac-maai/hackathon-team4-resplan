@@ -52,8 +52,14 @@ def plan_record(i: int, sqft: float) -> dict:
 
 def find_plans(bedrooms: int, sqft: float) -> list[int]:
     """Indices of the N_RESULTS plans closest in area, preferring the exact bedroom count
-    and plans where every room is reachable. Relaxes the filters only if too few plans match."""
+    and plans where every room is reachable. Relaxes the filters only if too few plans match.
+    Ties in area (many plans have the same round area) are broken by a fixed rule, so the same
+    query gives the same plans on every computer: higher daylight score first, then lower id."""
     diff = np.abs(INDEX["area_sqft"] - sqft)
+    # np.lexsort sorts by the LAST key first: area difference, then daylight (high first), then id
+    order = np.lexsort((INDEX["ids"], -INDEX["daylight_score"], diff))
+    rank = np.empty(len(order), dtype=np.int64)
+    rank[order] = np.arange(len(order))
     beds = INDEX["bedrooms"].astype(int)
     tiers = [
         HAS_AREA & (beds == bedrooms) & ~INDEX["missing_door"],
@@ -64,7 +70,7 @@ def find_plans(bedrooms: int, sqft: float) -> list[int]:
     chosen: list[int] = []
     for mask in tiers:
         candidates = np.flatnonzero(mask & ~np.isin(np.arange(len(diff)), chosen))
-        chosen += candidates[np.argsort(diff[candidates])][: N_RESULTS - len(chosen)].tolist()
+        chosen += candidates[np.argsort(rank[candidates])][: N_RESULTS - len(chosen)].tolist()
         if len(chosen) == N_RESULTS:
             break
     return chosen

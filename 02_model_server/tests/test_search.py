@@ -39,6 +39,10 @@ def test_common_query():
         assert p["bedrooms"] == 3, "a common query must return the exact bedroom count"
         assert not p["scores"]["missing_door"], "a common query must prefer plans without a missing door"
         assert abs(p["area_diff_sqft"]) <= 110, "a common query must stay within 10% of the area"
+    # fixed order, the same on every computer: closest area, then higher daylight, then lower id
+    keys = [(abs(p["area_diff_sqft"]), -p["scores"]["daylight_score"], p["id"]) for p in result["plans"]]
+    assert keys == sorted(keys), f"plans are not in the fixed order: {keys}"
+    assert search(3, 1100) == result, "the same query must give the same answer"
 
 
 def test_rare_query_still_gives_6():
