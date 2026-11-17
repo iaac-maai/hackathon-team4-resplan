@@ -2,8 +2,10 @@
 .venv/
 venv/
 
-# Jupyter
+# Jupyter and Python
 .ipynb_checkpoints/
+__pycache__/
+*.pyc
 
 # data: downloaded by the notebook, not committed
 data/*

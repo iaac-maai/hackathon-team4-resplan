@@ -1,0 +1,17 @@
+{
+  "architecture": "ConvAE",
+  "latent_dim": 16,
+  "image_size": 64,
+  "preprocessing": "each plan scaled to fit 64x64 (5% margin, aspect ratio kept), greyscale, pixels 0-1: background black (0), floor grey (0.4), walls white (1.0)",
+  "threshold": 0.03309766203165054,
+  "threshold_rule": "95th percentile of the reconstruction error on normal validation plans",
+  "normal_classes": [
+    "real ResPlan floor plans"
+  ],
+  "anomaly_classes_in_test": [
+    "shuffled",
+    "stray lines",
+    "hole"
+  ],
+  "test_roc_auc": 0.951
+}
