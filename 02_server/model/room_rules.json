@@ -1,0 +1,207 @@
+{
+  "n_plans": 3000,
+  "rooms_seen": {
+    "living": 3000,
+    "kitchen": 3000,
+    "bedroom": 7243,
+    "bathroom": 7161,
+    "balcony": 3923,
+    "storage": 306,
+    "stair": 81
+  },
+  "opens_to_percent": {
+    "living": {
+      "living": 0.0,
+      "kitchen": 99.0,
+      "bedroom": 100.0,
+      "bathroom": 87.0,
+      "balcony": 43.0,
+      "storage": 9.0,
+      "stair": 2.0,
+      "front_door": 97.0
+    },
+    "kitchen": {
+      "living": 99.0,
+      "kitchen": 1.0,
+      "bedroom": 2.0,
+      "bathroom": 1.0,
+      "balcony": 0.0,
+      "storage": 1.0,
+      "stair": 0.0,
+      "front_door": 0.0
+    },
+    "bedroom": {
+      "living": 99.0,
+      "kitchen": 1.0,
+      "bedroom": 0.0,
+      "bathroom": 57.0,
+      "balcony": 36.0,
+      "storage": 0.0,
+      "stair": 0.0,
+      "front_door": 0.0
+    },
+    "bathroom": {
+      "living": 42.0,
+      "kitchen": 1.0,
+      "bedroom": 58.0,
+      "bathroom": 0.0,
+      "balcony": 0.0,
+      "storage": 0.0,
+      "stair": 0.0,
+      "front_door": 0.0
+    },
+    "balcony": {
+      "living": 34.0,
+      "kitchen": 0.0,
+      "bedroom": 65.0,
+      "bathroom": 0.0,
+      "balcony": 6.0,
+      "storage": 0.0,
+      "stair": 0.0,
+      "front_door": 0.0
+    },
+    "storage": {
+      "living": 92.0,
+      "kitchen": 6.0,
+      "bedroom": 4.0,
+      "bathroom": 4.0,
+      "balcony": 0.0,
+      "storage": 0.0,
+      "stair": 0.0,
+      "front_door": 0.0
+    },
+    "stair": {
+      "living": 62.0,
+      "kitchen": 6.0,
+      "bedroom": 6.0,
+      "bathroom": 32.0,
+      "balcony": 7.0,
+      "storage": 0.0,
+      "stair": 0.0,
+      "front_door": 14.0
+    }
+  },
+  "next_to_percent": {
+    "living": {
+      "living": 0.0,
+      "kitchen": 99.0,
+      "bedroom": 100.0,
+      "bathroom": 98.0,
+      "balcony": 46.0,
+      "storage": 10.0,
+      "stair": 2.0,
+      "front_door": 100.0
+    },
+    "kitchen": {
+      "living": 100.0,
+      "kitchen": 1.0,
+      "bedroom": 43.0,
+      "bathroom": 31.0,
+      "balcony": 0.0,
+      "storage": 4.0,
+      "stair": 0.0,
+      "front_door": 0.0
+    },
+    "bedroom": {
+      "living": 99.0,
+      "kitchen": 20.0,
+      "bedroom": 47.0,
+      "bathroom": 83.0,
+      "balcony": 47.0,
+      "storage": 2.0,
+      "stair": 0.0,
+      "front_door": 1.0
+    },
+    "bathroom": {
+      "living": 73.0,
+      "kitchen": 14.0,
+      "bedroom": 86.0,
+      "bathroom": 33.0,
+      "balcony": 17.0,
+      "storage": 1.0,
+      "stair": 1.0,
+      "front_door": 0.0
+    },
+    "balcony": {
+      "living": 38.0,
+      "kitchen": 0.0,
+      "bedroom": 77.0,
+      "bathroom": 29.0,
+      "balcony": 6.0,
+      "storage": 1.0,
+      "stair": 0.0,
+      "front_door": 0.0
+    },
+    "storage": {
+      "living": 95.0,
+      "kitchen": 38.0,
+      "bedroom": 46.0,
+      "bathroom": 32.0,
+      "balcony": 12.0,
+      "storage": 0.0,
+      "stair": 0.0,
+      "front_door": 1.0
+    },
+    "stair": {
+      "living": 74.0,
+      "kitchen": 11.0,
+      "bedroom": 35.0,
+      "bathroom": 48.0,
+      "balcony": 7.0,
+      "storage": 1.0,
+      "stair": 2.0,
+      "front_door": 14.0
+    }
+  },
+  "entrance_opens_into_percent": {
+    "living": 99.0,
+    "stair": 0.0,
+    "kitchen": 0.0,
+    "balcony": 0.0,
+    "bedroom": 0.0
+  },
+  "room_m2": {
+    "living": {
+      "rooms seen": 3000.0,
+      "median m\u00b2": 41.0,
+      "small (10%) m\u00b2": 25.5,
+      "large (90%) m\u00b2": 63.4
+    },
+    "kitchen": {
+      "rooms seen": 3000.0,
+      "median m\u00b2": 10.4,
+      "small (10%) m\u00b2": 6.8,
+      "large (90%) m\u00b2": 15.5
+    },
+    "bedroom": {
+      "rooms seen": 7243.0,
+      "median m\u00b2": 18.8,
+      "small (10%) m\u00b2": 13.9,
+      "large (90%) m\u00b2": 25.6
+    },
+    "bathroom": {
+      "rooms seen": 7161.0,
+      "median m\u00b2": 4.9,
+      "small (10%) m\u00b2": 3.1,
+      "large (90%) m\u00b2": 7.1
+    },
+    "balcony": {
+      "rooms seen": 3923.0,
+      "median m\u00b2": 5.4,
+      "small (10%) m\u00b2": 2.9,
+      "large (90%) m\u00b2": 11.2
+    },
+    "storage": {
+      "rooms seen": 306.0,
+      "median m\u00b2": 3.4,
+      "small (10%) m\u00b2": 1.5,
+      "large (90%) m\u00b2": 9.8
+    },
+    "stair": {
+      "rooms seen": 81.0,
+      "median m\u00b2": 5.1,
+      "small (10%) m\u00b2": 1.7,
+      "large (90%) m\u00b2": 11.8
+    }
+  }
+}

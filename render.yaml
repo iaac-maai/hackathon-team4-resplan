@@ -1,0 +1,16 @@
+# Render Blueprint: render.com > New > Blueprint > this repository. Render reads this file and makes the service.
+services:
+  - type: web
+    name: team4-layout-server          # the address: https://team4-layout-server.onrender.com
+    runtime: python
+    region: frankfurt                  # cannot be changed later
+    plan: free
+    rootDir: 02_server                 # the server's folder in this repository
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+      - key: CHUNK                     # the model draws 5 pictures at a time: less memory (the free server has 512 MB)
+        value: "5"

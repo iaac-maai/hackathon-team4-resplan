@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Team 4 · Layout generator</title>
+<link rel="icon" href="data:,">
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1b; --muted: #6b6a64; --line: #e2e0d8;
+    --accent: #2a78d6; --accent-ink: #ffffff; --warn: #b3261e; --warn-bg: #fdecea; --ok: #1baf7a;
+    --living: #2a78d6; --bedroom: #eb6834; --bathroom: #1baf7a; --kitchen: #eda100; --balcony: #e87ba4;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 24px; border-bottom: 1px solid var(--line); background: var(--card); }
+  header h1 { font-size: 17px; margin: 0; font-weight: 650; }
+  header .tag { font-size: 12px; color: var(--muted); border: 1px solid var(--line); border-radius: 99px; padding: 1px 9px; }
+  header nav { margin-left: auto; display: flex; gap: 16px; font-size: 14px; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  main { display: grid; grid-template-columns: 340px 1fr; gap: 20px; padding: 20px 24px 40px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 860px) { main { grid-template-columns: 1fr; padding: 14px; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
+  .step { margin-bottom: 18px; }
+  .step > label, .step > .label { display: block; font-weight: 600; margin-bottom: 7px; }
+  .hint { font-size: 13px; color: var(--muted); }
+  .drop { border: 1.5px dashed #c9c6ba; border-radius: var(--radius); padding: 18px; text-align: center; cursor: pointer; background: #fbfaf7; }
+  .drop.over { border-color: var(--accent); background: #eef4fc; }
+  .drop input { display: none; }
+  .linkbtn { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; }
+  .linkbtn:hover { text-decoration: underline; }
+  input[type=number] { width: 110px; font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg input { position: absolute; opacity: 0; pointer-events: none; }
+  .seg label { padding: 7px 14px; cursor: pointer; border-right: 1px solid var(--line); user-select: none; }
+  .seg label:last-of-type { border-right: 0; }
+  .seg input:checked + label { background: var(--ink); color: #fff; }
+  .seg input:focus-visible + label { outline: 2px solid var(--accent); outline-offset: -2px; }
+  button.primary { width: 100%; padding: 11px; font: inherit; font-weight: 600; color: var(--accent-ink); background: var(--accent);
+                   border: 0; border-radius: 8px; cursor: pointer; }
+  button.primary:disabled { opacity: .55; cursor: wait; }
+  button.small { font: inherit; font-size: 13px; padding: 5px 11px; border: 1px solid var(--line); background: var(--card);
+                 border-radius: 7px; cursor: pointer; }
+  button.small:hover { border-color: #bdbab0; }
+  .stack { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+  .photo-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .photo-head strong { margin-right: auto; }
+  .photo-wrap { position: relative; display: inline-block; max-width: 100%; }
+  .photo-wrap img { display: block; max-width: 100%; max-height: 520px; border-radius: 8px; }
+  .photo-wrap svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .photo-wrap.taps svg { cursor: crosshair; }
+  .empty { color: var(--muted); padding: 40px 10px; text-align: center; }
+  .status { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .status img { width: 84px; height: 84px; border: 1px solid var(--line); border-radius: 6px; image-rendering: pixelated; }
+  .error { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 10px 12px; }
+  .options { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 14px; }
+  .option img { width: 100%; aspect-ratio: 1; object-fit: contain; background: #fff; border-radius: 6px; }
+  .option h3 { margin: 8px 0 2px; font-size: 15px; display: flex; justify-content: space-between; }
+  .option .sum { font-size: 13px; color: var(--muted); }
+  .option details { font-size: 13px; margin-top: 6px; }
+  .option table { border-collapse: collapse; width: 100%; margin-top: 4px; }
+  .option td { padding: 2px 0; border-bottom: 1px solid var(--line); }
+  .option td:last-child { text-align: right; }
+  .option .actions { display: flex; gap: 8px; margin-top: 10px; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 12px; }
+  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-right-color: transparent;
+             border-radius: 50%; animation: spin .8s linear infinite; vertical-align: -2px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (max-width: 520px) { header .tag { display: none; } header { padding: 12px 14px; } }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Team 4 · Layout generator</h1>
+  <span class="tag">test page</span>
+  <nav><a href="/api" target="_blank">API</a><a href="/health" target="_blank">Health</a></nav>
+</header>
+
+<main>
+  <section class="card" aria-label="Request">
+    <div class="step">
+      <span class="label">1. Photo of the silhouette</span>
+      <label class="drop" id="drop">
+        <input type="file" id="file" accept="image/*">
+        <div id="dropText">Drop a photo here, or click to choose one</div>
+        <div class="hint">From above, the whole outline inside the photo</div>
+      </label>
+      <div style="margin-top:8px"><button class="linkbtn" id="example" type="button">Use our example sketch</button></div>
+    </div>
+    <div class="step">
+      <label for="area">2. Area of the silhouette</label>
+      <input type="number" id="area" value="95" min="25" max="400" step="1"> m²
+      <div class="hint">The whole silhouette, balcony included</div>
+    </div>
+    <div class="step">
+      <span class="label">3. Bedrooms</span>
+      <div class="seg" id="beds"></div>
+    </div>
+    <div class="step">
+      <span class="label">4. Balcony</span>
+      <div class="seg">
+        <input type="radio" name="balcony" id="balYes" value="1" checked><label for="balYes">Yes</label>
+        <input type="radio" name="balcony" id="balNo" value="0"><label for="balNo">No</label>
+      </div>
+    </div>
+    <button class="primary" id="go" type="button" disabled>Make 5 layouts</button>
+    <p class="hint" id="goHint">Choose a photo first.</p>
+  </section>
+
+  <div class="stack">
+    <section class="card" aria-label="Photo">
+      <div class="photo-head">
+        <strong id="photoTitle">The photo</strong>
+        <span id="tapTools" hidden>
+          <button class="small" id="undo" type="button">Undo</button>
+          <button class="small" id="clear" type="button">Clear</button>
+          <button class="small" id="useTaps" type="button">Make 5 layouts from my corners</button>
+        </span>
+        <button class="small" id="tapMode" type="button" hidden>Tap the corners myself</button>
+      </div>
+      <div id="noPhoto" class="empty">No photo yet</div>
+      <div class="photo-wrap" id="wrap" hidden>
+        <img id="photo" alt="The photo of the silhouette">
+        <svg id="overlay" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg"></svg>
+      </div>
+    </section>
+
+    <section class="card" id="resultCard" hidden aria-label="Results">
+      <div class="status" id="status"></div>
+      <div id="error" class="error" hidden style="margin-top:12px"></div>
+      <div class="options" id="options" style="margin-top:16px"></div>
+      <div class="legend" id="legend"></div>
+    </section>
+  </div>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const ROOMS = { living: "Living", bedroom: "Bedroom", bathroom: "Bathroom", kitchen: "Kitchen", balcony: "Balcony" };
+const COLORS = { living: "#2a78d6", bedroom: "#eb6834", bathroom: "#1baf7a", kitchen: "#eda100", balcony: "#e87ba4" };
+let photoBlob = null, photoW = 0, photoH = 0, taps = [], tapMode = false, seed = 0, last = null, busy = false;
+
+// bedrooms 1-5
+$("#beds").innerHTML = [1, 2, 3, 4, 5].map((n) =>
+  `<input type="radio" name="beds" id="bed${n}" value="${n}" ${n === 3 ? "checked" : ""}><label for="bed${n}">${n}${n === 5 ? "+" : ""}</label>`).join("");
+$("#legend").innerHTML = Object.keys(ROOMS).map((t) => `<span><span class="dot" style="background:${COLORS[t]}"></span>${ROOMS[t]}</span>`).join("");
+
+// ---------- the photo ----------
+async function loadPhoto(file) {
+  // the phone's rotation is applied, and the photo is made smaller (long side 1600 px) before it is sent
+  const bmp = await createImageBitmap(file, { imageOrientation: "from-image" });
+  const k = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bmp.width * k);
+  canvas.height = Math.round(bmp.height * k);
+  canvas.getContext("2d").drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  photoBlob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  photoW = canvas.width; photoH = canvas.height;
+  $("#photo").src = URL.createObjectURL(photoBlob);
+  $("#overlay").setAttribute("viewBox", `0 0 ${photoW} ${photoH}`);
+  $("#wrap").hidden = false; $("#noPhoto").hidden = true;
+  $("#dropText").textContent = "Photo ready · click to change it";
+  $("#tapMode").hidden = false;
+  setTapMode(false); taps = []; seed = 0; last = null;
+  drawOverlay(null);
+  $("#resultCard").hidden = true;
+  $("#go").disabled = false; $("#goHint").textContent = "On the free server this can take up to a minute. After a long pause it needs about one more minute to wake up.";
+}
+
+$("#file").addEventListener("change", (e) => e.target.files[0] && loadPhoto(e.target.files[0]).catch(showLoadError));
+const drop = $("#drop");
+["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", (e) => e.dataTransfer.files[0] && loadPhoto(e.dataTransfer.files[0]).catch(showLoadError));
+$("#example").addEventListener("click", async () => {
+  try { loadPhoto(await (await fetch("/static/sketch_example.jpg")).blob()); } catch (e) { showLoadError(e); }
+});
+function showLoadError() { alert("This file cannot be opened as a photo. Please use a JPEG or PNG."); }
+
+// ---------- the outline on the photo, and the taps ----------
+function drawOverlay(points, closed = true) {
+  const svg = $("#overlay");
+  if (!points || !points.length) { svg.innerHTML = ""; return; }
+  const r = Math.max(photoW, photoH) * 0.009;
+  const pts = points.map((p) => p.join(",")).join(" ");
+  let html = closed
+    ? `<polygon points="${pts}" fill="rgba(42,120,214,.18)" stroke="#eda100" stroke-width="3" vector-effect="non-scaling-stroke"/>`
+    : `<polyline points="${pts}" fill="none" stroke="#2a78d6" stroke-width="2.5" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>`;
+  html += points.map((p, i) => `<circle cx="${p[0]}" cy="${p[1]}" r="${r}" fill="${closed ? "#eda100" : "#2a78d6"}" stroke="#fff" stroke-width="2" vector-effect="non-scaling-stroke"/>`
+    + (closed ? "" : `<text x="${p[0] + r * 1.4}" y="${p[1] - r * 1.4}" font-size="${r * 2.4}" fill="#1d1d1b" font-weight="700" paint-order="stroke" stroke="#fff" stroke-width="${r * 0.6}">${i + 1}</text>`)).join("");
+  svg.innerHTML = html;
+}
+
+function setTapMode(on, message) {
+  tapMode = on;
+  $("#wrap").classList.toggle("taps", on);
+  $("#tapTools").hidden = !on;
+  $("#tapMode").hidden = on || !photoBlob;
+  $("#photoTitle").textContent = on ? (message || "Tap the corners of the flat, in order, all the way around") : "The photo";
+  if (on) { taps = []; drawOverlay(taps, false); }
+}
+
+$("#tapMode").addEventListener("click", () => setTapMode(true));
+$("#overlay").addEventListener("click", (e) => {
+  if (!tapMode) return;
+  const svg = $("#overlay"), pt = svg.createSVGPoint();
+  pt.x = e.clientX; pt.y = e.clientY;
+  const p = pt.matrixTransform(svg.getScreenCTM().inverse());
+  taps.push([Math.round(p.x * 10) / 10, Math.round(p.y * 10) / 10]);
+  drawOverlay(taps, false);
+});
+$("#undo").addEventListener("click", () => { taps.pop(); drawOverlay(taps, false); });
+$("#clear").addEventListener("click", () => { taps = []; drawOverlay(taps, false); });
+
+// ---------- asking the server ----------
+function inputs() {
+  return { area_m2: $("#area").value, bedrooms: document.querySelector("input[name=beds]:checked").value,
+           balcony: document.querySelector("input[name=balcony]:checked").value };
+}
+
+async function ask(kind) {
+  if (busy) return;
+  const v = inputs();
+  let res;
+  setBusy(true);
+  try {
+    if (kind === "taps") {
+      if (taps.length < 4) { setBusy(false); alert("Tap at least 4 corners."); return; }
+      res = await fetch("/api/design/outline", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ points: taps, ...v, seed }) });
+    } else {
+      const fd = new FormData();
+      fd.append("photo", photoBlob, "photo.jpg");
+      Object.entries({ ...v, seed }).forEach(([k, x]) => fd.append(k, x));
+      res = await fetch("/api/design", { method: "POST", body: fd });
+    }
+    const data = await res.json();
+    last = { kind, data };
+    show(data, kind);
+  } catch (e) {
+    show({ ok: false, error: "The server did not answer. Is it running? (" + e.message + ")" }, kind);
+  } finally {
+    setBusy(false);
+  }
+}
+
+function setBusy(on) {
+  busy = on;
+  const go = $("#go");
+  go.disabled = on || !photoBlob;
+  go.innerHTML = on ? '<span class="spinner"></span>Working…' : "Make 5 layouts";
+  $("#useTaps").disabled = on;
+}
+
+$("#go").addEventListener("click", () => { seed = 0; setTapMode(false); ask("photo"); });
+$("#useTaps").addEventListener("click", () => { seed = 0; ask("taps"); });
+
+// ---------- the answer ----------
+function show(data, kind) {
+  $("#resultCard").hidden = false;
+  const err = $("#error");
+  err.hidden = !data.error; err.textContent = data.error || "";
+  if (data.need_taps) {
+    setTapMode(true, "No closed shape found: tap the corners of the flat, in order");
+    $("#status").innerHTML = ""; $("#options").innerHTML = "";
+    return;
+  }
+  if (data.outline && data.outline.photo_px) {
+    if (kind === "taps") { setTapMode(false); }
+    drawOverlay(data.outline.photo_px, true);
+    $("#photoTitle").textContent = kind === "taps" ? "Your corners, squared" : "The outline that was found";
+  }
+  const p = data.pictures;
+  $("#status").innerHTML = !p ? "" : `
+    ${data.model_input_png ? `<img src="${data.model_input_png}" alt="The model's input" title="The model's input (128 × 128)">` : ""}
+    <div>
+      <div><strong>${data.options.length} option${data.options.length === 1 ? "" : "s"}</strong> in ${data.seconds} s ·
+        ${p.usable} of ${p.drawn} pictures of the model could be used</div>
+      <div class="hint">${Object.entries(p.dropped).map(([k, n]) => `${k}: ${n}`).join(" · ") || "none dropped"}</div>
+      <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="small" id="again" type="button">Show other options</button>
+        <button class="small" id="json" type="button">Download the answer (JSON)</button>
+      </div>
+    </div>`;
+  if (p) {
+    $("#again").onclick = () => { seed += 1; ask(kind); };
+    $("#json").onclick = () => download(new Blob([JSON.stringify(data, null, 1)], { type: "application/json" }), `layouts_seed${seed}.json`);
+  }
+  $("#options").innerHTML = (data.options || []).map(card).join("");
+  (data.options || []).forEach((o) => {
+    const b = document.getElementById(`dxf${o.rank}`);
+    if (b) b.onclick = () => download(new Blob([Uint8Array.from(atob(o.dxf_base64), (c) => c.charCodeAt(0))],
+                                               { type: "application/dxf" }), `layout_option_${o.rank}.dxf`);
+  });
+}
+
+function card(o) {
+  const s = o.summary;
+  const parts = [`${s.bedrooms} bedroom${s.bedrooms === 1 ? "" : "s"}`, `${s.bathrooms} bathroom${s.bathrooms === 1 ? "" : "s"}`,
+                 `rooms ${s.rooms_m2} m²`];
+  if (s.balconies) parts.push(`balcony ${s.balcony_m2} m²`);
+  const rooms = [...o.rooms].sort((a, b) => Object.keys(ROOMS).indexOf(a.type) - Object.keys(ROOMS).indexOf(b.type) || b.area_m2 - a.area_m2);
+  return `<article class="option">
+    ${o.preview_png ? `<img src="${o.preview_png}" alt="Option ${o.rank}">` : ""}
+    <h3><span>Option ${o.rank}</span><span class="hint">score ${o.score.toFixed(2)}</span></h3>
+    <div class="sum">${parts.join(" · ")}${s.kitchen_rescued ? " · kitchen rescued" : ""}</div>
+    <details><summary>Rooms</summary><table>${rooms.map((r) =>
+      `<tr><td><span class="dot" style="background:${COLORS[r.type]}"></span>${ROOMS[r.type]}</td><td>${r.area_m2.toFixed(1)} m²</td></tr>`).join("")}</table></details>
+    <div class="actions">${o.dxf_base64 ? `<button class="small" id="dxf${o.rank}" type="button">Download DXF</button>` : '<span class="hint">no DXF on this server</span>'}</div>
+  </article>`;
+}
+
+function download(blob, name) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+</script>
+</body>
+</html>

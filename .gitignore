@@ -34,3 +34,6 @@ kaggle.json
 *.pkl
 __pycache__/
 .ipynb_checkpoints/
+
+# server: the ONNX model of 02_server goes to GitHub, because Render takes the files from there
+!02_server/model/*.onnx

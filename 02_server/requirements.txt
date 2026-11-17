@@ -1,0 +1,12 @@
+# the packages the server needs on Render (the model runs with ONNX Runtime: no PyTorch)
+onnxruntime
+numpy
+scipy
+scikit-learn
+opencv-python-headless
+pillow
+matplotlib
+ezdxf
+starlette
+uvicorn
+python-multipart

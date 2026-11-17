@@ -1,0 +1,44 @@
+{
+  "model": "LayoutCVAE: conditional VAE, decoder sees the silhouette at 8, 16, 32, 64 and 128 pixels",
+  "weights": "layout_cvae.pt",
+  "latent_dim": 32,
+  "image_size": 128,
+  "channels": [
+    "living",
+    "bedroom",
+    "bathroom",
+    "kitchen",
+    "balcony",
+    "wall",
+    "door",
+    "window"
+  ],
+  "silhouette": "floor (inner) + walls + balconies, gaps closed by 1 unit; values 0-1 inside",
+  "preprocessing": "turn 90 degrees if taller than wide; move the corner to (0, 0); scale to fit 512x512 with a 5% margin, centred, y axis pointing down; fill; shrink to 128x128 with cv2.INTER_AREA; divide by 255",
+  "condition": {
+    "bedrooms_onehot": [
+      1,
+      2,
+      3,
+      4,
+      "5+"
+    ],
+    "balcony": "0 or 1",
+    "area": "log(silhouette m2), minus area_mean, divided by area_std",
+    "area_mean": 4.830326253802263,
+    "area_std": 0.39442963016213634
+  },
+  "generate": "z = random normal (latent_dim numbers); output = decode(z, silhouette, condition)",
+  "beta": 0.008,
+  "free_bits": 0.1,
+  "epochs_trained": 28,
+  "best_epoch": 20,
+  "check_on_validation": {
+    "counter check: real maps, bedrooms right": 0.975,
+    "invented: bedrooms right": 0.37333333333333335,
+    "invented: bedrooms right \u00b11": 0.8616666666666667,
+    "invented: balcony as asked": 0.9916666666666667,
+    "options differ (share of pixels)": 0.5833492376435343,
+    "code numbers in use (of 32)": 32.0
+  }
+}
