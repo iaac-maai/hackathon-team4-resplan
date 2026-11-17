@@ -41,7 +41,7 @@ The original floor-plan geometry is transformed into multi-channel raster repres
 - **Licence:** CC BY 4.0 for the data. Our code is MIT (see `LICENSE`).
 - The data is **not** in this repository. Put `ResPlan.pkl` in the `data/` folder at the root.
 
-The original dataset is not included in this repository.
+The original dataset https://www.kaggle.com/datasets/resplan/resplan is not included in this repository.
 
 ## 3. Methodology
 
