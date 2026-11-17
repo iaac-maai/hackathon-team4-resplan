@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.pyc
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Dataset and generated cache
+cache/
+data/
+
+# PyTorch checkpoints
+models/
+*.pt
+
+# Temporary files
+*.tmp
+*.log
+
+# Environment
+.env
+.venv/
+venv/
