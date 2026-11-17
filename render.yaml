@@ -1,0 +1,14 @@
+# Render Blueprint for the Team 4 model server (code lives in 02_model_server/)
+services:
+  - type: web
+    name: team4-resplan-server
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: 02_model_server
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
