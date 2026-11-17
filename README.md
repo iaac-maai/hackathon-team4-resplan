@@ -206,31 +206,22 @@ The model should therefore be considered an exploratory generative design tool r
 
 ## 11. References and Links
 
-- Dataset: [Insert ResPlan source]
-- GitHub repository: [Insert team repository URL]
-- Hugging Face model: [Insert model URL]
+- Dataset: https://www.kaggle.com/datasets/resplan/resplan
+- GitHub repository: https://github.com/iaac-maai/hackathon-team4-resplan
+- Hugging Face model: https://huggingface.co/fawad-iaac/hackathon-team4-resplan-ae
 
 ---
 
 *IAAC Hackathon — Conditional Variational Autoencoder for Residential Floor Plans.*
 
-## 12. Links
 
-| Part | Link |
-|---|---|
-| Monday: autoencoder | [`01_autoencoder/`](01_autoencoder/) |
-| Model on Hugging Face | *(add after upload: `iaac-maai/hackathon-team4-resplan-ae`)* |
-| Model server (Render) | *(Tuesday)* |
-| App (Cloudflare) | *(Wednesday)* |
-| Impulse talk | [`impulse/LINK.md`](impulse/LINK.md) |
-
-## 13. AI usage disclosure
+## 12. AI usage disclosure
 
 | | |
 |---|---|
-| **Tools** | Claude (chat and agent) |
-| **Why** | ... |
-| **Where** | Monday: Claude created the empty repository structure (folders, `.gitignore`, `LICENSE`, this README template). ... Tuesday: ... Wednesday: ... Thursday: ... |
-| **How** | ... |
+| **Tools** | ChatGPT, Claude |
+| **Why** | To support understanding of the CVAE workflow, explore implementation approaches, troubleshoot code, interpret model results, and prepare the project documentation and submission materials. |
+| **Where** | **Monday:** Claude created the initial empty repository structure, including folders, `.gitignore`, `LICENSE`, and the README template. ChatGPT supported understanding the assignment requirements, dataset structure, autoencoder concepts, and the CVAE implementation. **Tuesday–Thursday:** ChatGPT was used as a learning and development assistant to help with implementation questions, debugging, model evaluation, result interpretation, and preparation of documentation. |
+| **How** | AI tools were used for explanations, coding assistance, troubleshooting, and documentation support. Suggested code and explanations were reviewed and adapted during implementation. Model training, experiments, evaluation, and final decisions were carried out as part of the team's project workflow. AI-generated suggestions were not treated as automatically correct; outputs were checked against the code, experiment results, and assignment requirements. |
 
-**Lessons learned:** ...
+**Lessons learned:** AI tools were useful for accelerating development and making unfamiliar concepts easier to understand. However, their suggestions still required verification. In particular, debugging, checking tensor dimensions, validating model outputs, and interpreting evaluation metrics required direct testing. We learned to use AI as an assistant for understanding and problem-solving rather than relying on it as a substitute for technical judgement.
