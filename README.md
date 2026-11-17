@@ -41,7 +41,7 @@ The original floor-plan geometry is transformed into multi-channel raster repres
 - **Licence:** CC BY 4.0 for the data. Our code is MIT (see `LICENSE`).
 - The data is **not** in this repository. Put `ResPlan.pkl` in the `data/` folder at the root.
 
-The original dataset is not included in this repository.
+The original dataset https://www.kaggle.com/datasets/resplan/resplan is not included in this repository.
 
 ## 3. Methodology
 
@@ -100,25 +100,31 @@ Model selection is based on validation performance, while the test set is used f
 
 ### Dataset representation
 
-![Dataset channels](figures/dataset_channels.png)
+![Dataset channels](01_autoencoder/figures/dataset_channels.png)
 
 ### Training performance
 
-![CVAE z32 training history](figures/CVAE_z32_training_history.png)
+**CVAE z32**
 
-![CVAE z64 training history](figures/CVAE_z64_training_history.png)
+![CVAE z32 training history](01_autoencoder/figures/CVAE_z32_training_history.png)
 
-![CVAE z128 training history](figures/CVAE_z128_training_history.png)
+**CVAE z64**
+
+![CVAE z64 training history](01_autoencoder/figures/CVAE_z64_training_history.png)
+
+**CVAE z128**
+
+![CVAE z128 training history](01_autoencoder/figures/CVAE_z128_training_history.png)
 
 ### Reconstruction
 
-![Original and reconstructed floor plan](figures/cvae_z64_reconstruction.png)
+![Original and reconstructed floor plan](01_autoencoder/figures/cvae_z64_reconstruction.png)
 
 The model captures some room configurations and spatial patterns. However, reconstructed geometry remains blurry, and architectural details are not consistently preserved.
 
 ### Latent interpolation
 
-![VAE latent interpolation](figures/cvae_z64_latent_blend.png)
+![CVAE latent interpolation](01_autoencoder/figures/cvae_z64_latent_blend.png)
 
 Latent interpolation explores transitions between learned floor-plan representations. This demonstrates the model's potential as a generative design exploration tool.
 
@@ -153,7 +159,7 @@ model_app/
 
 ONNX Runtime is used for model inference.
 
-**Hugging Face model:** [Insert published model URL]
+**Hugging Face model:** https://huggingface.co/iaac-maai/hackathon-team4-resplan-ae
 
 ## 8. How to Run
 
@@ -165,7 +171,7 @@ Install the required packages using the project's environment configuration.
 
 The main notebook is:
 
-`notebook/autoencoder.ipynb`
+`notebook/02_autoencoder_clean_audited.ipynb`
 
 Open the notebook in Jupyter or VS Code and execute its cells in order.
 
@@ -208,7 +214,7 @@ The model should therefore be considered an exploratory generative design tool r
 
 - Dataset: https://www.kaggle.com/datasets/resplan/resplan
 - GitHub repository: https://github.com/iaac-maai/hackathon-team4-resplan
-- Hugging Face model: https://huggingface.co/fawad-iaac/hackathon-team4-resplan-ae
+- Hugging Face model: https://huggingface.co/iaac-maai/hackathon-team4-resplan-ae
 
 ---
 
