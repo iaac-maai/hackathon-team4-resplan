@@ -2,6 +2,8 @@
 
 IAAC MaAI · AI Methods hackathon, November 2026 · Team 4.
 
+**Public URL:** https://team4-layout-server.onrender.com · API example with outputs: [`call_api.ipynb`](call_api.ipynb)
+
 The user draws the silhouette of a flat, takes a photo, and types three things: the **area** (m²), the number of **bedrooms**, and **balcony** yes/no. The server answers with **5 floor plans**, as vectors in metres and as DXF files.
 
 How: the photo becomes the silhouette (step 4). Then our model, a conditional VAE trained on ResPlan and exported to ONNX, draws 30 room maps for this silhouette. Step 3 turns them into clean plans with walls, doors and windows, keeps the ones that follow the rules, and chooses the 5 best that are different from each other. The code is in `layout_core.py`, the same file the notebooks use.
