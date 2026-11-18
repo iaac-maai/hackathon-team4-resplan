@@ -104,10 +104,10 @@ Three configurations were trained using the same dataset split.
 ### Model comparison
 
 | Model | Training Time | Test Objective | Reconstruction Loss | KL Divergence |
-|---|---:|---:|---:|---:|
-| CVAE_z32 | [Insert] | 205.52 | 205.51 | 7.21 |
-| CVAE_z64 | [Insert] | 187.84 | 187.82 | 15.88 |
-| CVAE_z128 | [Insert] | 196.96 | 196.94 | 22.79 |
+|---|---:|---:|---:|
+| CVAE_z32 | 205.52 | 205.51 | 7.21 |
+| CVAE_z64 | 187.84 | 187.82 | 15.88 |
+| CVAE_z128 | 196.96 | 196.94 | 22.79 |
 
 Validation objectives and training times should be taken from the saved training histories.
 
