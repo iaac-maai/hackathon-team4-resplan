@@ -1,6 +1,7 @@
 """publish.py - get the 02_server folder ready for Render (run it on your computer, before git push).
 
-    python publish.py
+    python publish.py                  the model in 01_autoencoder/models/layout_generator (v1)
+    python publish.py --model layout_generator_v2      another trained model, for example v2 from notebook 07
 
 1. copies layout_core.py, the model settings and the example sketch from 01_autoencoder into this folder
 2. turns the PyTorch model into ONNX (model/layout_decoder.onnx): the server runs it without PyTorch
@@ -9,6 +10,7 @@
 Run it again after every change to layout_core.py or after training the model again,
 then commit and push the 02_server folder: Render takes the files from GitHub.
 """
+import argparse
 import json
 import shutil
 import sys
@@ -17,17 +19,20 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 MODEL = REPO / "01_autoencoder" / "models" / "layout_generator"
-COPIES = {
-    REPO / "01_autoencoder" / "notebook" / "layout_core.py": HERE / "layout_core.py",
-    MODEL / "layout_cvae_config.json": HERE / "model" / "layout_cvae_config.json",
-    MODEL / "room_rules.json": HERE / "model" / "room_rules.json",
-    REPO / "01_autoencoder" / "layout_examples" / "sketch_example.jpg": HERE / "static" / "sketch_example.jpg",
-}
+
+
+def copies():
+    return {
+        REPO / "01_autoencoder" / "notebook" / "layout_core.py": HERE / "layout_core.py",
+        MODEL / "layout_cvae_config.json": HERE / "model" / "layout_cvae_config.json",
+        MODEL / "room_rules.json": HERE / "model" / "room_rules.json",
+        REPO / "01_autoencoder" / "layout_examples" / "sketch_example.jpg": HERE / "static" / "sketch_example.jpg",
+    }
 ONNX = HERE / "model" / "layout_decoder.onnx"
 
 
 def copy_files():
-    for source, target in COPIES.items():
+    for source, target in copies().items():
         if not source.exists():
             raise SystemExit(f"missing: {source}")
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -44,7 +49,7 @@ def export_onnx():
     import layout_core as lc
 
     config = json.loads((MODEL / "layout_cvae_config.json").read_text())
-    model = lc.LayoutCVAE(latent_dim=config["latent_dim"])
+    model = lc.make_model(config)                       # v1 or v2, as the config says
     model.load_state_dict(torch.load(MODEL / config["weights"], map_location="cpu"))
     model.eval()
 
@@ -82,6 +87,10 @@ def export_onnx():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--model", default="layout_generator", help="the model's folder in 01_autoencoder/models")
+    MODEL = REPO / "01_autoencoder" / "models" / parser.parse_args().model
+    print(f"model: {MODEL.relative_to(REPO)}")
     copy_files()
     export_onnx()
     print("\nready.")

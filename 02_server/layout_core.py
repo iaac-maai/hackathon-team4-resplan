@@ -40,6 +40,13 @@ SETTINGS = {
     "min_bedroom_width_m": 2.5,    # net, inside the walls
     "min_main_bathroom_m2": 3.5,   # net: at least one bathroom this big (shower, toilet, sink); smaller ones are guest toilets
     "kitchen_boost": [1.0, 1.5, 2.0, 3.0],   # no kitchen in the picture: the model's kitchen signal is made stronger, step by step
+    "kitchen_outer_wall_m": 1.0,   # the kitchen touches the outside along at least 1 m (97% of ResPlan kitchens do)
+    "max_corners": {"bedroom": 6, "bathroom": 6, "kitchen": 6, "balcony": 6, "living": 12},   # 4 = rectangle, 6 = L shape
+    "corner_margin": 2,            # up to 2 corners more: allowed, but a lower score; more than that: the option is dropped
+    "smooth_m": 0.45,              # every room: steps and bumps smaller than this go to the neighbouring room
+    "corner_tolerance_m": 0.6,     # steps smaller than this (often along the outline of the flat) do not count as corners
+    "straighten_m": [0.9, 1.5, 2.1],   # a room with too many corners: arms narrower than this go to the neighbour
+    "wall_threshold": 0.35,        # the model's own wall layer: above this value a pixel is a wall between two rooms
     "min_room_m2": {"living": 6.0, "bedroom": 5.0, "bathroom": 1.8, "kitchen": 3.5, "balcony": 1.5},
     "min_rectangle_m2": 1.0,       # the smallest rectangle when the picture is cut into rectangles
     "max_rectangles": 60,
@@ -102,6 +109,74 @@ if torch is not None:
             mu, logvar = self.encode(x, s, c)
             z = mu + torch.randn_like(mu) * torch.exp(0.5 * logvar)
             return self.decode(z, s, c), mu, logvar
+
+    class _FiLM(nn.Module):
+        # the condition (bedrooms, balcony, area) scales and shifts every feature map: it reaches every layer
+        def __init__(self, n_emb, channels):
+            super().__init__()
+            self.lin = nn.Linear(n_emb, 2 * channels)
+
+        def forward(self, h, e):
+            gamma, beta = self.lin(e).chunk(2, dim=1)
+            return h * (1 + gamma[:, :, None, None]) + beta[:, :, None, None]
+
+    class _UpBlock(nn.Module):
+        # double the size, one or two convolutions, then the condition (FiLM)
+        def __init__(self, cin, cout, n_emb, convs=2):
+            super().__init__()
+            layers = [nn.Upsample(scale_factor=2, mode="nearest"), nn.Conv2d(cin, cout, 3, padding=1), nn.ReLU()]
+            for _ in range(convs - 1):
+                layers += [nn.Conv2d(cout, cout, 3, padding=1), nn.ReLU()]
+            self.body = nn.Sequential(*layers)
+            self.film = _FiLM(n_emb, cout)
+
+        def forward(self, h, e):
+            return torch.relu(self.film(self.body(h), e))
+
+    class LayoutCVAE2(nn.Module):
+        # v2 (07_layout_generator_v2.ipynb): the same inputs and outputs as LayoutCVAE, but the condition reaches
+        # every layer of the decoder (FiLM), and the decoder is wider at 8-32 px. The 128 px step stays light.
+        def __init__(self, latent_dim=32, n_cond=BED_MAX + 2, n_out=len(CHANNELS), n_emb=64):
+            super().__init__()
+            self.latent_dim = latent_dim
+            self.enc = nn.Sequential(_down(n_out + 1, 32), _down(32, 64), _down(64, 128), _down(128, 128), nn.Flatten())
+            self.to_mu = nn.Linear(128 * 8 * 8 + n_cond, latent_dim)
+            self.to_logvar = nn.Linear(128 * 8 * 8 + n_cond, latent_dim)
+            self.emb = nn.Sequential(nn.Linear(n_cond, n_emb), nn.ReLU(), nn.Linear(n_emb, n_emb), nn.ReLU())
+            self.sil64, self.sil32, self.sil16, self.sil8 = _down(1, 16), _down(16, 32), _down(32, 64), _down(64, 64)
+            self.start = nn.Sequential(nn.Linear(latent_dim + n_emb, 192 * 8 * 8), nn.ReLU())
+            self.up16 = _UpBlock(192 + 64, 192, n_emb, convs=2)
+            self.up32 = _UpBlock(192 + 64, 96, n_emb, convs=2)
+            self.up64 = _UpBlock(96 + 32, 48, n_emb, convs=1)
+            self.up128 = nn.Upsample(scale_factor=2, mode="nearest")
+            self.out = nn.Conv2d(48 + 16 + 1, n_out, 3, padding=1)
+
+        def encode(self, x, s, c):
+            h = torch.cat([self.enc(torch.cat([x, s], 1)), c], 1)
+            return self.to_mu(h), self.to_logvar(h)
+
+        def decode(self, z, s, c):
+            e = self.emb(c)
+            s64 = self.sil64(s)
+            s32 = self.sil32(s64)
+            s16 = self.sil16(s32)
+            s8 = self.sil8(s16)
+            h = self.start(torch.cat([z, e], 1)).view(-1, 192, 8, 8)
+            h = self.up16(torch.cat([h, s8], 1), e)
+            h = self.up32(torch.cat([h, s16], 1), e)
+            h = self.up64(torch.cat([h, s32], 1), e)
+            h = self.up128(torch.cat([h, s64], 1))
+            return torch.sigmoid(self.out(torch.cat([h, s], 1))) * s
+
+        def forward(self, x, s, c):
+            mu, logvar = self.encode(x, s, c)
+            z = mu + torch.randn_like(mu) * torch.exp(0.5 * logvar)
+            return self.decode(z, s, c), mu, logvar
+
+    def make_model(config):
+        # the right model class for a saved config: "architecture" v1 (LayoutCVAE) or v2 (LayoutCVAE2)
+        cls = LayoutCVAE2 if config.get("architecture", "v1") == "v2" else LayoutCVAE
+        return cls(latent_dim=config["latent_dim"])
 
     @torch.no_grad()
     def generate(model, sil_u8, cond, n=30, seed=None, device="cpu"):
@@ -248,7 +323,76 @@ def _net_size(mask, envelope, m_per_px, settings=SETTINGS):
     return area - lost * m_per_px, width - settings["interior_wall_m"]
 
 
-def fix_bedrooms(inst, types, wanted, m_per_px, settings=SETTINGS):
+def corners(mask):
+    # number of corners of a shape on the pixel grid (outline and holes): 4 = rectangle, 6 = L shape
+    m = np.pad(np.asarray(mask, dtype=bool), 1).astype(np.int8)
+    a, b, c, d = m[:-1, :-1], m[:-1, 1:], m[1:, :-1], m[1:, 1:]
+    total = a + b + c + d
+    diagonal = (a == d) & (b == c) & (a != b)
+    return int(((total == 1) | (total == 3)).sum() + 2 * diagonal.sum())
+
+
+def visible_corners(mask, m_per_px, settings=SETTINGS):
+    # corners that a person sees: small steps (smaller than corner_tolerance_m) are not counted
+    m = np.pad(np.asarray(mask, dtype=np.uint8), 1)
+    if not m.any():
+        return 0
+    up = cv2.resize(m, None, fx=2, fy=2, interpolation=cv2.INTER_NEAREST)       # contours on pixel edges, not centres
+    contours, _ = cv2.findContours(up, cv2.RETR_CCOMP, cv2.CHAIN_APPROX_NONE)
+    eps = 2 * 0.75 * settings["corner_tolerance_m"] / m_per_px                  # in the doubled grid
+    return int(sum(len(cv2.approxPolyDP(c, eps, True)) for c in contours if len(c) >= 4))
+
+
+def straighten_rooms(inst, types, m_per_px, settings=SETTINGS, skip=("living",)):
+    # 4d. First every room loses its small steps and bumps (smaller than 45 cm). Then a room with too many corners
+    #     loses its thin arms (narrower than 0.9 m, then 1.5 m, then 2.1 m). The pieces go to the room they touch most;
+    #     the living room is not cut in the second pass: it takes the pieces.
+    inst = inst.copy()
+    inside = inst >= 0
+    passes = [(i, [settings["smooth_m"]], True) for i in range(len(types))] + \
+             [(i, settings["straighten_m"], False) for i, t in enumerate(types) if t not in skip]
+    for i, widths, always in passes:
+        t = types[i]
+        for width_m in widths:
+            mask = inst == i
+            if not mask.any() or (not always and visible_corners(mask, m_per_px, settings) <= settings["max_corners"].get(t, 8)):
+                break
+            k = max(3, int(round(width_m / m_per_px)) | 1)
+            core = cv2.morphologyEx(mask.astype(np.uint8), cv2.MORPH_OPEN, np.ones((k, k), np.uint8)).astype(bool)
+            n, lab = cv2.connectedComponents(core.astype(np.uint8), connectivity=4)
+            if n < 2:
+                break
+            core = lab == (np.argmax(np.bincount(lab[lab > 0])) if n > 2 else 1)
+            if core.sum() < 0.6 * mask.sum():                # it would lose too much: leave it
+                break
+            n, lab = cv2.connectedComponents((mask & ~core).astype(np.uint8), connectivity=4)
+            for piece_id in range(1, n):
+                piece = lab == piece_id
+                ring = cv2.dilate(piece.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool) & ~mask & inside
+                neighbours = inst[ring]
+                neighbours = neighbours[neighbours >= 0]
+                if len(neighbours):
+                    inst[piece] = Counter(neighbours.tolist()).most_common(1)[0][0]
+    return _renumber(inst, types)
+
+
+def _split_by_walls(mask, walls, settings=SETTINGS):
+    # the model drew a wall across this room: the two biggest pieces on each side of it, or None
+    if walls is None:
+        return None
+    open_ = mask & (walls < settings["wall_threshold"])
+    n, lab = cv2.connectedComponents(open_.astype(np.uint8), connectivity=4)
+    if n < 3:
+        return None
+    sizes = np.bincount(lab.ravel())[1:]
+    first, second = np.argsort(-sizes)[:2] + 1
+    seeds = (lab == first) | (lab == second)
+    _, (iy, ix) = ndimage.distance_transform_edt(~seeds, return_indices=True)
+    nearest = lab[iy, ix]                                      # every other pixel of the room joins the nearest piece
+    return mask & (nearest == first), mask & (nearest == second)
+
+
+def fix_bedrooms(inst, types, wanted, m_per_px, settings=SETTINGS, walls=None):
     # 4. Exactly the asked number of bedrooms: split the largest bedroom in two (equal halves) until the count is right.
     #    Returns None and a reason when it is not possible.
     inst, types = inst.copy(), list(types)
@@ -261,7 +405,16 @@ def fix_bedrooms(inst, types, wanted, m_per_px, settings=SETTINGS):
             break
         done = False
         for i in sorted(beds, key=lambda i: -(inst == i).sum()):
-            a, b = _split(inst == i)
+            split = _split_by_walls(inst == i, walls, settings)        # first: along a wall the model drew
+            if split is not None:
+                a, b = split
+                (area_a, width_a), (area_b, width_b) = _net_size(a, envelope, m_per_px, settings), _net_size(b, envelope, m_per_px, settings)
+                if min(area_a, area_b) >= settings["min_bedroom_m2"] and min(width_a, width_b) >= settings["min_bedroom_width_m"]:
+                    inst[b] = len(types)
+                    types.append("bedroom")
+                    done = True
+                    break
+            a, b = _split(inst == i)                                   # else: in two equal halves
             if not a.any() or not b.any():
                 continue
             if cv2.connectedComponents(a.astype(np.uint8), connectivity=4)[0] > 2 or \
@@ -449,8 +602,9 @@ def walls_doors_windows(inst, types, m_per_px, rules, settings=SETTINGS):
             "windows_of": windows_of}
 
 
-def score_layout(types, parts, m_per_px, rules):
-    # 6. A score from 0 to 1: typical room sizes, typical doors, windows in bedrooms and living room, rectangular rooms
+def score_layout(types, parts, m_per_px, rules, inst=None, settings=SETTINGS):
+    # 6. A score from 0 to 1: typical room sizes, typical doors, windows in bedrooms and living room, rectangular rooms,
+    #    simple shapes (no more corners than max_corners)
     cell = parts["cell"]
     sizes = rules.get("room_m2", {})
     size_s, shape_s = [], []
@@ -472,6 +626,10 @@ def score_layout(types, parts, m_per_px, rules):
                    "doors": float(np.mean(door_s)) if door_s else 0.0,
                    "windows": float(window_s),
                    "rectangular": float(np.mean(shape_s)) if shape_s else 0.0}
+    if inst is not None:
+        simple = [min(1.0, settings["max_corners"].get(t, 8) / max(visible_corners(inst == i, m_per_px, settings), 1))
+                  for i, t in enumerate(types)]
+        parts_score["simple shapes"] = float(np.mean(simple)) if simple else 0.0
     return float(np.mean(list(parts_score.values()))), parts_score
 
 
@@ -558,14 +716,26 @@ def _plan_rooms(maps, sil_u8, bedrooms, balcony, m_per_px, rules, settings=SETTI
     debug = {"label": label, "rect": rect, "inst_before_split": inst.copy(), "types_before_split": list(types)}
     if bool(balcony) != ("balcony" in types):
         return None, None, "balcony asked" if balcony else "balcony not asked", debug
-    inst, types, why = fix_bedrooms(inst, types, int(bedrooms), m_per_px, settings)
+    walls = np.asarray(maps[CHANNELS.index("wall")], dtype=np.float32)
+    inst, types, why = fix_bedrooms(inst, types, int(bedrooms), m_per_px, settings, walls=walls)
     if inst is None:
         return None, None, why, debug
     inst, types = split_big_rooms(inst, types, m_per_px, rules, settings)
     inst, types = limit_rooms(inst, types, bedrooms, settings)
+    inst, types = straighten_rooms(inst, types, m_per_px, settings)
     missing = [t for t in ["living", "kitchen", "bathroom"] if t not in types]
     if missing:                                          # every flat needs a living room, a kitchen and a bathroom
         return None, None, "no " + missing[0], debug
+    for i, t in enumerate(types):
+        if visible_corners(inst == i, m_per_px, settings) > settings["max_corners"].get(t, 8) + settings["corner_margin"]:
+            return None, None, f"a {t} has too many corners", debug
+    outside = inst < 0
+    for i, t in enumerate(types):                        # the kitchen is on an outer wall (window, ventilation)
+        if t == "kitchen":
+            k = (inst == i).astype(np.uint8)
+            contact = sum(int((np.roll(k, shift, axis) & outside).sum()) for shift, axis in [(1, 0), (-1, 0), (1, 1), (-1, 1)])
+            if contact * m_per_px < settings["kitchen_outer_wall_m"]:
+                return None, None, "kitchen not on an outer wall", debug
     return inst, types, "", debug
 
 
@@ -574,13 +744,13 @@ def make_layout(maps, sil_u8, bedrooms, balcony, m_per_px, rules, settings=SETTI
     layout = {"ok": False, "reason": "", "bedrooms_asked": int(bedrooms), "balcony_asked": int(balcony)}
     k = ROOMS.index("kitchen")
     for boost in settings["kitchen_boost"]:
-        # The model often draws the kitchen weakly next to the living room, and the living room wins.
-        # Then the kitchen signal of the SAME picture is made stronger, and steps 1-4c run again.
+        # The model often draws the kitchen weakly next to the living room, and the living room wins (or a small
+        # kitchen floats inside it). Then the kitchen signal of the SAME picture is made stronger, and steps 1-4d run again.
         m = np.array(maps, dtype=np.float32)
         if boost != 1.0:
             m[k] = np.clip(m[k] * boost, 0, 1)
         inst, types, why, dbg = _plan_rooms(m, sil_u8, bedrooms, balcony, m_per_px, rules, settings)
-        if why != "no kitchen":
+        if why not in ("no kitchen", "kitchen not on an outer wall"):
             break
     if debug:
         layout["debug"] = dbg
@@ -604,7 +774,7 @@ def make_layout(maps, sil_u8, bedrooms, balcony, m_per_px, rules, settings=SETTI
     if max(bathrooms, default=0.0) < settings["min_main_bathroom_m2"]:
         layout["reason"] = "main bathroom too small"
         return layout
-    score, score_parts = score_layout(types, parts, m_per_px, rules)
+    score, score_parts = score_layout(types, parts, m_per_px, rules, inst=inst, settings=settings)
     layout.update({"ok": True, "score": score, "score_parts": score_parts, "room_types": types, "inst": inst,
                    "doors_info": parts["door_info"]})
     if debug:
@@ -673,6 +843,21 @@ def _patch(polygon, **kw):
     return PathPatch(Path(verts, codes), **kw)
 
 
+def label_point(polygon, px_per_m=20):
+    # the point of a room farthest from its edges (never in a hole, never outside an L shape)
+    rings = [np.asarray(r, dtype=float) for r in polygon]
+    low, high = rings[0].min(0), rings[0].max(0)
+    w, h = np.ceil((high - low) * px_per_m).astype(int) + 3
+    img = np.zeros((h, w), np.uint8)
+    to_px = lambda r: np.round((r - low) * px_per_m + 1).astype(np.int32)
+    cv2.fillPoly(img, [to_px(rings[0])], 1)
+    for hole in rings[1:]:
+        cv2.fillPoly(img, [to_px(hole)], 0)
+    dist = cv2.distanceTransform(img, cv2.DIST_L2, 3)
+    y, x = np.unravel_index(np.argmax(dist), dist.shape)
+    return (x - 1) / px_per_m + low[0], (y - 1) / px_per_m + low[1]
+
+
 def draw_layout(layout, ax, title="", labels=True):
     for room in layout["rooms"]:
         for poly in room["polygons"]:
@@ -690,8 +875,7 @@ def draw_layout(layout, ax, title="", labels=True):
     if labels:
         for room in layout["rooms"]:
             if room["polygons"] and room["area_m2"] >= 2.5:
-                ring = max((p[0] for p in room["polygons"]), key=_area)
-                x, y = ring.mean(0)
+                x, y = label_point(max(room["polygons"], key=lambda p: _area(np.asarray(p[0]))))
                 ax.text(x, y, f"{room['area_m2']:.0f}", ha="center", va="center", fontsize=6, color="#0b0b0b")
     ax.set_aspect("equal")
     ax.autoscale_view()
@@ -741,8 +925,7 @@ def export_dxf(layout, path, note=""):
     for room in layout["rooms"]:
         outline(room["polygons"], ROOM_LAYER[room["type"]])
         if room["polygons"] and room["area_m2"] >= 1.0:
-            ring = max((p[0] for p in room["polygons"]), key=_area)
-            x, y = ring.mean(0)
+            x, y = label_point(max(room["polygons"], key=lambda p: _area(np.asarray(p[0]))))
             msp.add_mtext(f"{room['type'].upper()}\\P{room['area_m2']:.1f} m²",
                           dxfattribs={"layer": "A-AREA-IDEN", "char_height": 0.2,
                                       "insert": (float(x), float(y)), "attachment_point": 5})
