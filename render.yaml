@@ -1,11 +1,27 @@
-# Render Blueprint: render.com > New > Blueprint > this repository. Render reads this file and makes the service.
+# Render Blueprint for Team 4: render.com > New > Blueprint > this repository.
+# Render reads this file and makes one web service for each entry below.
 services:
+  # 1. the search server (Gradio): code in 02_model_server/
+  - type: web
+    name: team4-resplan-server
+    runtime: python
+    plan: free
+    region: frankfurt
+    rootDir: 02_model_server
+    buildCommand: pip install -r requirements.txt
+    startCommand: python app.py
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.8
+
+  # 2. the layout generator (photo of the silhouette -> 5 plans): code in 02_server/
   - type: web
     name: team4-layout-server          # the address: https://team4-layout-server.onrender.com
     runtime: python
-    region: frankfurt                  # cannot be changed later
     plan: free
-    rootDir: 02_server                 # the server's folder in this repository
+    region: frankfurt                  # cannot be changed later
+    rootDir: 02_server
     buildCommand: pip install -r requirements.txt
     startCommand: python app.py
     healthCheckPath: /health

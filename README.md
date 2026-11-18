@@ -6,6 +6,22 @@ IAAC MaAI – AI Methods hackathon, 16–20 November 2026.
 
 - Team 4: Fawad, Hetashree, Daria, Luis
 
+## Links
+
+| Part | Where |
+|---|---|
+| Autoencoder (Monday) | [`01_autoencoder/`](01_autoencoder/) · model on Hugging Face: https://huggingface.co/iaac-maai/hackathon-team4-resplan-ae |
+| Model server (Tuesday) | [`02_model_server/`](02_model_server/) · live: https://team4-resplan-server.onrender.com |
+
+## Model server
+
+A Gradio server on Render (free plan, Frankfurt), with a page for people and an API for programs. Code and API examples: [`02_model_server/`](02_model_server/).
+
+- **`/search`**: bedrooms and floor area (sqft) in, the 6 closest ResPlan plans out, each with its room counts, 8 × 8 relationship matrix and scores (circulation, daylight, cross-ventilation, dark rooms, missing door).
+- **`/predict`**: the course's class example model (Fashion-MNIST anomaly autoencoder). It is a placeholder until our own model is on the server.
+
+The free service sleeps after 15 minutes without requests; the first call then takes about one minute.
+
 # ResPlan — Conditional Variational Autoencoder
 
 ## 1. Project Overview
@@ -215,6 +231,7 @@ The model should therefore be considered an exploratory generative design tool r
 - Dataset: https://www.kaggle.com/datasets/resplan/resplan
 - GitHub repository: https://github.com/iaac-maai/hackathon-team4-resplan
 - Hugging Face model: https://huggingface.co/iaac-maai/hackathon-team4-resplan-ae
+- Model server: https://team4-resplan-server.onrender.com
 
 ---
 
