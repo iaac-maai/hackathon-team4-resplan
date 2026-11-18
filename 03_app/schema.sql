@@ -6,7 +6,7 @@ DROP TABLE IF EXISTS designs;
 CREATE TABLE designs (
   id TEXT PRIMARY KEY,        -- a random id (crypto.randomUUID)
   created_at TEXT NOT NULL,   -- ISO date and time, UTC
-  photo_key TEXT NOT NULL,    -- the uploaded sketch in R2: uploads/<id>
+  photo_thumb TEXT,           -- a small thumbnail of the sketch (JPEG data URL, about 10 KB)
   area_m2 REAL NOT NULL,      -- what the user asked
   bedrooms INTEGER NOT NULL,
   balcony INTEGER NOT NULL,   -- 1 = yes, 0 = no (SQLite has no boolean)

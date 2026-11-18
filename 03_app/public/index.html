@@ -255,6 +255,15 @@ async function shrink(file, maxSide = 1000) {       // the server uses 1000 px a
   return new Promise((resolve) => c.toBlob(resolve, "image/jpeg", 0.85));
 }
 
+async function thumbnail(file, side = 200) {   // small JPEG for the saved designs (kept in D1)
+  const img = await createImageBitmap(file);
+  const k = side / Math.max(img.width, img.height);
+  const c = document.createElement("canvas");
+  c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.7);
+}
+
 async function generate() {
   if (!lastFile) { setMessage("Choose a photo of the outline first.", true); return; }
   $("go").disabled = $("more").disabled = true;
@@ -267,6 +276,7 @@ async function generate() {
     form.append("bedrooms", $("bedrooms").value);
     form.append("balcony", balcony);
     form.append("seed", seed);
+    form.append("thumb", await thumbnail(lastFile));
     const answer = await (await fetch("/api/design", { method: "POST", body: form })).json();
     if (!answer.ok) {
       setMessage(answer.need_taps
@@ -675,7 +685,7 @@ async function loadHistory() {
     const card = document.createElement("div");
     card.className = "h-card";
     card.innerHTML = `
-      <div class="pics"><img src="/api/images/${r.id}" alt="sketch"><div>${plan ? drawPlan(plan, false) : ""}</div></div>
+      <div class="pics">${r.photo_thumb ? `<img src="${r.photo_thumb}" alt="sketch">` : "<div></div>"}<div>${plan ? drawPlan(plan, false) : ""}</div></div>
       <div class="r">${r.bedrooms} bed · ${Math.round(r.area_m2)} m² · balcony ${r.balcony ? "yes" : "no"}</div>
       <div class="t">${r.created_at.replace("T", " ").slice(0, 16)} UTC · ${r.n_options} options · best ${r.best_score == null ? "–" : Number(r.best_score).toFixed(2)}</div>`;
     $("history").appendChild(card);

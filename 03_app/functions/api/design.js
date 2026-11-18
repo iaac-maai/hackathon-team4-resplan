@@ -1,6 +1,6 @@
 // POST /api/design with form fields: photo (file), area_m2, bedrooms, balcony, seed
-// 1. ask the layout server for 5 options, 2. store the sketch in R2,
-// 3. store one row in D1 (with option 1's drawing as JSON), 4. send the options back to the page.
+// 1. ask the layout server for 5 options, 2. store one row in D1 (a small thumbnail of the sketch +
+// option 1's drawing as JSON), 3. send the options back to the page. No R2 needed.
 const WANT_DXF = 1; // 0 = no DXF files (smaller, faster answer)
 
 export async function onRequestPost({ request, env }) {
@@ -10,6 +10,7 @@ export async function onRequestPost({ request, env }) {
   const bedrooms = parseInt(form.get("bedrooms"), 10);
   const balcony = form.get("balcony") === "1" ? 1 : 0;
   const seed = parseInt(form.get("seed") || "0", 10) || 0;
+  const thumb = String(form.get("thumb") || "");           // small JPEG made by the page (data URL)
 
   if (!photo || typeof photo === "string") return bad("Choose a photo of the outline.");
   if (photo.size > 8 * 1024 * 1024) return bad("Photo too large (max 8 MB).", 413);
@@ -36,25 +37,21 @@ export async function onRequestPost({ request, env }) {
   }
   if (!answer.ok) return Response.json(answer); // e.g. no closed shape in the photo: nothing to save
 
-  // 2. Store the sketch in R2
+  // 2. One row in D1. The "?" placeholders keep user input out of the SQL text
   const id = crypto.randomUUID();
-  const photoKey = `uploads/${id}`;
-  await env.BUCKET.put(photoKey, bytes, { httpMetadata: { contentType: photo.type || "image/jpeg" } });
-
-  // 3. One row in D1. The "?" placeholders keep user input out of the SQL text
   const best = answer.options[0];
   const bestPlan = { rooms: best.rooms, walls: best.walls, doors: best.doors, windows: best.windows,
                      rails: best.rails, entrance: best.entrance, outline: best.outline };
   const createdAt = new Date().toISOString();
   await env.DB.prepare(
-    "INSERT INTO designs (id, created_at, photo_key, area_m2, bedrooms, balcony, n_options, best_score, summary, best_plan) " +
+    "INSERT INTO designs (id, created_at, photo_thumb, area_m2, bedrooms, balcony, n_options, best_score, summary, best_plan) " +
     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )
-    .bind(id, createdAt, photoKey, area, bedrooms, balcony, answer.options.length,
+    .bind(id, createdAt, thumb.startsWith("data:image/") && thumb.length < 60000 ? thumb : null, area, bedrooms, balcony, answer.options.length,
           best.score ?? null, JSON.stringify(best.summary ?? {}), JSON.stringify(bestPlan))
     .run();
 
-  // 4. Answer the page
+  // 3. Answer the page
   return Response.json({ id, created_at: createdAt, ...answer });
 }
 
