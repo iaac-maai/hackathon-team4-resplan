@@ -16,7 +16,7 @@ flowchart LR
     E["<b>Output</b><br>5 different plans, best first<br>vectors in metres + DXF"]
 
     A --> B --> C --> D --> E
-    T -. "trained weights<br>(decoder only, ONNX)" .-> C
+    T -.->|"trained weights<br>(decoder only, ONNX)"| C
 
     classDef model fill:#EEEDFE,stroke:#7F77DD,color:#26215C
     classDef rule fill:#E1F5EE,stroke:#1D9E75,color:#04342C
@@ -41,6 +41,33 @@ flowchart LR
 - **Drop the plans that break the rules** (bedroom ≥ 9 m², one kitchen, a main bathroom ≥ 3.5 m²…), then keep the 5 best that differ from each other by at least 25%.
 
 In one sentence: **the model invents the zoning, and the rules turn it into a clean plan.** It is not a search in the data, and it is not a model that outputs a finished DXF by itself.
+
+## Technical details
+
+**The data**
+- ResPlan: 17,000 residential floor plans (vector geometry). After cleaning (augmented copies, twins, broken floors, quality problems removed): **15,832 plans**.
+- Split: **12,682 train · 1,580 validation · 1,570 test**.
+- Each plan becomes a **room map**: 8 layers of 128 × 128 pixels (living, bedroom, bathroom, kitchen, balcony, wall, door, window). One pixel ≈ 13 cm (median). Drawing all the maps took about 4 minutes.
+- Bedrooms in the data: 1 → 1,297 plans · 2 → 6,005 · 3 → 4,572 · 4 → 616 · 5+ → 192. 77% of the plans have a balcony.
+- A room table from 3,000 plans (typical room sizes, which room opens to which) is used by the rules in step 3.
+
+**The model: a conditional VAE**
+- Input of the decoder: the silhouette (128 × 128) + a condition of 7 numbers (bedrooms 1–5+ as one-hot, balcony 0/1, log of the area) + a code of **32 random numbers**.
+- The decoder sees the silhouette at 5 sizes (8, 16, 32, 64, 128 px), so the rooms stay inside the outline.
+- **1,518,448 parameters** (6 MB in PyTorch, 3 MB as ONNX).
+- Loss: binary cross-entropy + Dice (room shapes) + β · KL (β = 0.008, free bits 0.1 per code number).
+- Adam, learning rate 0.001, batch 128.
+
+**The training**
+- On a laptop **CPU** (no GPU), PyTorch.
+- First, 3 short trials to choose β (4 epochs on 40% of the data each): about **11 minutes**.
+- Then the full training: up to 40 epochs, stopped when the score did not improve for 8 epochs. It stopped after **28 epochs**, best at epoch 20: **68 minutes**, about 2 minutes per epoch.
+
+**How well it works (validation plans the model never saw)**
+- The balcony is as asked in **99%** of the pictures.
+- The number of bedrooms is right in **37%** of the raw pictures, ±1 in **86%** (step 3 fixes or drops the rest).
+- Two pictures for the same request differ in **58%** of their pixels: the model really gives different options.
+- One request on a laptop (30 pictures + step 3 + 5 vector plans): about **1.5 seconds**.
 
 ## Where each step is
 
