@@ -11,16 +11,23 @@ IAAC MaAI – AI Methods hackathon, 16–20 November 2026.
 | Part | Where |
 |---|---|
 | Autoencoder (Monday) | [`01_autoencoder/`](01_autoencoder/) · model on Hugging Face: https://huggingface.co/iaac-maai/hackathon-team4-resplan-ae |
-| Model server (Tuesday) | [`02_model_server/`](02_model_server/) · live: https://team4-resplan-server.onrender.com |
+| Layout server, our model (Tuesday) | [`02_server/`](02_server/) · live: https://team4-layout-server.onrender.com |
+| Search server (Tuesday) | [`02_model_server/`](02_model_server/) · live: https://team4-resplan-server.onrender.com |
 
-## Model server
+## Model servers
 
-A Gradio server on Render (free plan, Frankfurt), with a page for people and an API for programs. Code and API examples: [`02_model_server/`](02_model_server/).
+We run **two** servers on Render (free plan, Frankfurt). Both are defined in [`render.yaml`](render.yaml).
 
-- **`/search`**: bedrooms and floor area (sqft) in, the 6 closest ResPlan plans out, each with its room counts, 8 × 8 relationship matrix and scores (circulation, daylight, cross-ventilation, dark rooms, missing door).
-- **`/predict`**: the course's class example model (Fashion-MNIST anomaly autoencoder). It is a placeholder until our own model is on the server.
+| | Layout server: [`02_server/`](02_server/) | Search server: [`02_model_server/`](02_model_server/) |
+|---|---|---|
+| **What it does** | Generates new floor plans for a given flat outline | Finds existing ResPlan plans that match |
+| **Input** | Photo of the flat's silhouette + area (m²), bedrooms, balcony yes/no | Bedrooms + floor area (sqft) |
+| **Output** | 5 floor plans: rooms, walls, doors, windows (metres), PNG preview, DXF file | 6 plans: room counts, 8 × 8 relationship matrix, scores (circulation, daylight, cross-ventilation, dark rooms, missing door) |
+| **Model** | **Our conditional VAE** trained on ResPlan (ONNX decoder) | No model: a filter on precomputed plan data. `/predict` there is the course's class example, kept as a placeholder |
+| **Built with** | Starlette | Gradio |
+| **API example** | [`02_server/call_api.ipynb`](02_server/call_api.ipynb) | [`02_model_server/call_api.ipynb`](02_model_server/call_api.ipynb) |
 
-The free service sleeps after 15 minutes without requests; the first call then takes about one minute.
+Free services sleep after 15 minutes without requests; the first call then takes about one minute.
 
 # ResPlan — Conditional Variational Autoencoder
 
@@ -32,7 +39,9 @@ The objective is to train a generative model that learns spatial patterns from r
 
 The project uses the ResPlan dataset, containing approximately 17,000 residential floor plans represented through vector geometry and room connectivity information.
 
-**Selected use case:** VAE latent interpolation (VAE blend).
+**Use case of the app: layout generator.** An architect draws the outline (silhouette) of a flat, takes a photo of it, and gives the area (m²), the number of bedrooms and balcony yes/no. Our model answers with **5 new floor plans** that fit inside the outline, with rooms, walls, doors and windows, as vectors in metres and as DXF files. See [section 6](#6-use-case-layout-generator).
+
+Monday's use case was VAE latent interpolation (VAE blend) with a first CVAE; the sections 2 to 5 describe that first model.
 
 ## 2. Dataset
 
@@ -144,9 +153,23 @@ The model captures some room configurations and spatial patterns. However, recon
 
 Latent interpolation explores transitions between learned floor-plan representations. This demonstrates the model's potential as a generative design exploration tool.
 
-## 6. Selected Use Case: VAE Blend
+## 6. Use case: layout generator
 
-The selected use case explores interpolation between two learned floor-plan representations.
+**Who:** an architect at the start of a design. **Input:** a photo of the flat's silhouette, the area (m²), the number of bedrooms (1–5) and balcony yes/no. **Output:** 5 different floor plans that fit the silhouette, ranked by a score, with a PNG preview and a DXF file each.
+
+How it works (notebooks [`04_layout_generator.ipynb`](01_autoencoder/notebook/04_layout_generator.ipynb) to [`06_photo_to_silhouette.ipynb`](01_autoencoder/notebook/06_photo_to_silhouette.ipynb), code in `layout_core.py`):
+
+1. **Photo → silhouette:** the photo is turned into the outline of the flat.
+2. **Model:** a second, conditional VAE (**LayoutCVAE**, latent size 32) trained on about 15,000 clean ResPlan plans. Its decoder gets a random code + the silhouette (seen at 8 to 128 px) + the request (bedrooms, balcony, area) and draws a 128 × 128 room map: living, bedroom, bathroom, kitchen, balcony, wall, door, window. Another random code gives another layout.
+3. **Clean-up and choice:** the server draws 30 room maps, turns them into clean vector plans, drops the ones that break the rules (for example a bedroom under 9 m²), and keeps the 5 best that differ from each other.
+
+The model runs as ONNX on the layout server: https://team4-layout-server.onrender.com ([`02_server/`](02_server/)).
+
+**Limits:** the model often merges bedrooms that lie side by side, so the bedroom **count** is right in only about 37% of invented maps (86% within ±1), while the balcony follows the request in 99%. The clean-up step drops the wrong ones, so sometimes fewer than 5 options come back. The plans are a starting point for the architect, not a checked design.
+
+### Monday: VAE blend
+
+Monday's use case explored interpolation between two learned floor-plan representations with the first CVAE.
 
 Two floor plans are encoded into latent vectors. Intermediate latent representations are generated by interpolating between these vectors and passing them through the decoder.
 
@@ -231,7 +254,8 @@ The model should therefore be considered an exploratory generative design tool r
 - Dataset: https://www.kaggle.com/datasets/resplan/resplan
 - GitHub repository: https://github.com/iaac-maai/hackathon-team4-resplan
 - Hugging Face model: https://huggingface.co/iaac-maai/hackathon-team4-resplan-ae
-- Model server: https://team4-resplan-server.onrender.com
+- Layout server (our model): https://team4-layout-server.onrender.com
+- Search server: https://team4-resplan-server.onrender.com
 
 ---
 
