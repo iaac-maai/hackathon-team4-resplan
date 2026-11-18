@@ -16,3 +16,20 @@ CREATE TABLE designs (
   best_plan TEXT              -- option 1's drawing (rooms, walls, doors, windows) as JSON, in metres
 );
 CREATE INDEX idx_designs_created_at ON designs (created_at);
+
+-- One row per layout the user SAVED (swiped to the right).
+-- The app also makes this table by itself the first time a layout is saved (functions/api/save.js).
+CREATE TABLE IF NOT EXISTS saved_layouts (
+  id TEXT PRIMARY KEY,          -- a random id (crypto.randomUUID)
+  created_at TEXT NOT NULL,     -- ISO date and time, UTC
+  request_id TEXT NOT NULL,     -- the row in designs it came from
+  area_m2 REAL NOT NULL,        -- what the user asked
+  bedrooms INTEGER NOT NULL,
+  balcony INTEGER NOT NULL,     -- 1 = yes, 0 = no
+  option_rank INTEGER NOT NULL, -- which of the options it was (1 = best score)
+  score REAL,                   -- the model's score for this layout (0-1)
+  summary TEXT,                 -- JSON: bedrooms, bathrooms, m²
+  plan TEXT NOT NULL,           -- JSON: rooms, walls, doors, windows, outline, ... in metres
+  dxf_base64 TEXT               -- the DXF file (about 40 KB), so it can be downloaded later
+);
+CREATE INDEX IF NOT EXISTS idx_saved_created_at ON saved_layouts (created_at);
