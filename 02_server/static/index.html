@@ -30,6 +30,10 @@
   .drop { border: 1.5px dashed #c9c6ba; border-radius: var(--radius); padding: 18px; text-align: center; cursor: pointer; background: #fbfaf7; }
   .drop.over { border-color: var(--accent); background: #eef4fc; }
   .drop input { display: none; }
+  .photo-buttons { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+  .camera { margin-top: 12px; }
+  .camera video { width: 100%; border-radius: 8px; background: #000; display: block; }
+  .camera .row { display: flex; gap: 8px; margin-top: 8px; }
   .linkbtn { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; }
   .linkbtn:hover { text-decoration: underline; }
   input[type=number] { width: 110px; font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 8px; }
@@ -90,7 +94,19 @@
         <div id="dropText">Drop a photo here, or click to choose one</div>
         <div class="hint">From above, the whole outline inside the photo</div>
       </label>
-      <div style="margin-top:8px"><button class="linkbtn" id="example" type="button">Use our example sketch</button></div>
+      <div class="photo-buttons">
+        <button class="small" id="camera" type="button">Take a photo</button>
+        <button class="linkbtn" id="example" type="button">Use our example sketch</button>
+      </div>
+      <input type="file" id="camFile" accept="image/*" capture="environment" hidden>
+      <div class="camera" id="camBox" hidden>
+        <video id="video" playsinline muted></video>
+        <div class="hint">Hold the camera above the drawing, the whole outline inside the frame</div>
+        <div class="row">
+          <button class="small" id="snap" type="button">Take it</button>
+          <button class="small" id="camCancel" type="button">Cancel</button>
+        </div>
+      </div>
     </div>
     <div class="step">
       <label for="area">2. Area of the silhouette</label>
@@ -181,6 +197,39 @@ $("#example").addEventListener("click", async () => {
   try { loadPhoto(await (await fetch("/static/sketch_example.jpg")).blob()); } catch (e) { showLoadError(e); }
 });
 function showLoadError() { alert("This file cannot be opened as a photo. Please use a JPEG or PNG."); }
+
+// ---------- the camera ----------
+// On a phone or tablet: the phone's own camera opens (the photo comes back like a chosen file).
+// On a computer: the webcam shows here, and "Take it" takes the picture.
+let stream = null;
+$("#camFile").addEventListener("change", (e) => e.target.files[0] && loadPhoto(e.target.files[0]).catch(showLoadError));
+$("#camera").addEventListener("click", async () => {
+  const phone = matchMedia("(pointer: coarse)").matches;
+  if (phone || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { $("#camFile").click(); return; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
+  } catch (e) {
+    alert("The camera cannot be opened (no camera, or no permission). Choose a photo instead.");
+    return;
+  }
+  const video = $("#video");
+  video.srcObject = stream;
+  $("#camBox").hidden = false;
+  await video.play();
+});
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  $("#camBox").hidden = true;
+}
+$("#camCancel").addEventListener("click", stopCamera);
+$("#snap").addEventListener("click", () => {
+  const video = $("#video");
+  if (!video.videoWidth) return;
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+  canvas.getContext("2d").drawImage(video, 0, 0);
+  canvas.toBlob((blob) => { stopCamera(); loadPhoto(blob).catch(showLoadError); }, "image/jpeg", 0.92);
+});
 
 // ---------- the outline on the photo, and the taps ----------
 function drawOverlay(points, closed = true) {

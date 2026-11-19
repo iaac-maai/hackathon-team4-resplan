@@ -42,11 +42,17 @@ SETTINGS = {
     "kitchen_boost": [1.0, 1.5, 2.0, 3.0],   # no kitchen in the picture: the model's kitchen signal is made stronger, step by step
     "kitchen_outer_wall_m": 1.0,   # the kitchen touches the outside along at least 1 m (97% of ResPlan kitchens do)
     "max_corners": {"bedroom": 6, "bathroom": 6, "kitchen": 6, "balcony": 6, "living": 12},   # 4 = rectangle, 6 = L shape
-    "corner_margin": 2,            # up to 2 corners more: allowed, but a lower score; more than that: the option is dropped
+    "corner_margin": 0,            # corners allowed above max_corners (the living room: none checked, only a lower score)
     "smooth_m": 0.45,              # every room: steps and bumps smaller than this go to the neighbouring room
     "corner_tolerance_m": 0.6,     # steps smaller than this (often along the outline of the flat) do not count as corners
     "straighten_m": [0.9, 1.5, 2.1],   # a room with too many corners: arms narrower than this go to the neighbour
     "wall_threshold": 0.35,        # the model's own wall layer: above this value a pixel is a wall between two rooms
+    "min_clear_width_m": {"living": 1.6, "bedroom": 1.6, "kitchen": 1.6},   # between two parallel walls, everywhere in the room
+    "sliver_m": 0.5,               # a narrow part thinner than this is a jog of the wall, not a passage
+    "max_narrow_m2": 2.0,          # a part narrower than 1.6 m is allowed only as a niche: at most 2 m², 2 m long and
+    "max_niche_m": 2.0,            # at least 60 cm wide (a wardrobe or desk niche). Anything else is a passage nobody
+    "min_niche_width_m": 0.6,      # can use: it goes to the neighbouring room, or the option is dropped
+    "carved_kitchen_m2": 10.0,     # no kitchen in the picture: a kitchen of about this size is cut from the living room
     "min_room_m2": {"living": 6.0, "bedroom": 5.0, "bathroom": 1.8, "kitchen": 3.5, "balcony": 1.5},
     "min_rectangle_m2": 1.0,       # the smallest rectangle when the picture is cut into rectangles
     "max_rectangles": 60,
@@ -343,6 +349,91 @@ def visible_corners(mask, m_per_px, settings=SETTINGS):
     return int(sum(len(cv2.approxPolyDP(c, eps, True)) for c in contours if len(c) >= 4))
 
 
+def _largest_rectangle(mask):
+    # the biggest axis-aligned rectangle inside a shape: (y0, y1, x0, x1), end excluded
+    m = np.asarray(mask, dtype=bool)
+    heights = np.zeros(m.shape[1], dtype=int)
+    best, box = 0, None
+    for y in range(m.shape[0]):
+        heights = np.where(m[y], heights + 1, 0)
+        stack = []
+        for x in range(len(heights) + 1):
+            h = heights[x] if x < len(heights) else 0
+            start = x
+            while stack and stack[-1][1] >= h:
+                start, sh = stack.pop()
+                if sh * (x - start) > best:
+                    best, box = sh * (x - start), (y - sh + 1, y + 1, start, x)
+            stack.append((start, h))
+    return box
+
+
+def _give_away(inst, piece, own, inside, types=None, prefer="living"):
+    # a piece of room `own` goes to the neighbouring room it touches most (the living room first, if it touches it)
+    ring = cv2.dilate(piece.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool) & ~piece & inside & (inst != own)
+    neighbours = inst[ring]
+    neighbours = neighbours[neighbours >= 0].tolist()
+    if not neighbours:
+        return False
+    if types is not None and any(types[v] == prefer for v in neighbours):
+        neighbours = [v for v in neighbours if types[v] == prefer]
+    inst[piece] = Counter(neighbours).most_common(1)[0][0]
+    return True
+
+
+def rectangle_rooms(inst, types, m_per_px, settings=SETTINGS, kinds=("bedroom", "bathroom", "kitchen")):
+    # 4d+. A bedroom, bathroom or kitchen that still has too many corners becomes its biggest rectangle,
+    #      if that keeps at least 60% of it; the rest goes to the living room (or the room it touches most).
+    inst = inst.copy()
+    inside = inst >= 0
+    for i, t in enumerate(types):
+        mask = inst == i
+        if t not in kinds or not mask.any() or visible_corners(mask, m_per_px, settings) <= settings["max_corners"].get(t, 8):
+            continue
+        y0, y1, x0, x1 = _largest_rectangle(mask)
+        rect = np.zeros_like(mask)
+        rect[y0:y1, x0:x1] = True
+        if rect.sum() < 0.6 * mask.sum():
+            continue
+        n, lab = cv2.connectedComponents((mask & ~rect).astype(np.uint8), connectivity=4)
+        for piece_id in range(1, n):
+            _give_away(inst, lab == piece_id, i, inside, types)
+    return _renumber(inst, types)
+
+
+def grow_bedrooms(inst, types, m_per_px, settings=SETTINGS, max_grow_m=2.0):
+    # 4g. A bedroom smaller than the minimum (net) grows into the living room, one row of pixels at a time,
+    #     on a side where the next row is all living room, until it is big enough (at most 2 m).
+    inst = inst.copy()
+    living = [i for i, t in enumerate(types) if t == "living"]
+    envelope = lambda: (inst >= 0) & ~np.isin(inst, [k for k, t in enumerate(types) if t == "balcony"])
+    for i, t in enumerate(types):
+        if t != "bedroom" or not (inst == i).any():
+            continue
+        grown = 0
+        while _net_size(inst == i, envelope(), m_per_px, settings)[0] < settings["min_bedroom_m2"] and grown * m_per_px < max_grow_m:
+            ys, xs = np.nonzero(inst == i)
+            y0, y1, x0, x1 = ys.min(), ys.max() + 1, xs.min(), xs.max() + 1
+            options = []
+            for side, strip in [("up", (slice(y0 - 1, y0), slice(x0, x1))), ("down", (slice(y1, y1 + 1), slice(x0, x1))),
+                                ("left", (slice(y0, y1), slice(x0 - 1, x0))), ("right", (slice(y0, y1), slice(x1, x1 + 1)))]:
+                if min(strip[0].start, strip[1].start) < 0 or strip[0].stop > inst.shape[0] or strip[1].stop > inst.shape[1]:
+                    continue
+                cells = inst[strip]
+                if cells.size and np.isin(cells, living).all():
+                    options.append((side, strip))
+            if not options:
+                break
+            side, strip = options[0]
+            owner = int(inst[strip].flat[0])
+            inst[strip] = i
+            if (inst == owner).sum() * m_per_px ** 2 < settings["min_room_m2"]["living"]:
+                inst[strip] = owner                                # the living room would be too small: undo
+                break
+            grown += 1
+    return _renumber(inst, types)
+
+
 def straighten_rooms(inst, types, m_per_px, settings=SETTINGS, skip=("living",)):
     # 4d. First every room loses its small steps and bumps (smaller than 45 cm). Then a room with too many corners
     #     loses its thin arms (narrower than 0.9 m, then 1.5 m, then 2.1 m). The pieces go to the room they touch most;
@@ -376,6 +467,119 @@ def straighten_rooms(inst, types, m_per_px, settings=SETTINGS, skip=("living",))
     return _renumber(inst, types)
 
 
+def _narrow_part(mask, width_px, sliver_px=0.0):
+    # The part of a room where two parallel walls are closer than width_px.
+    # A jog of the wall (a thin strip lying ALONG a wide part of the room) is not counted. A thin strip that sticks
+    # out (a corridor, attached by its short end) is counted, however thin it is.
+    k = max(3, int(np.ceil(width_px)) | 1)
+    m = np.asarray(mask, dtype=np.uint8)
+    core = cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((k, k), np.uint8)).astype(bool)
+    narrow = m.astype(bool) & ~core
+    if sliver_px > 0 and narrow.any():
+        n, lab = cv2.connectedComponents(narrow.astype(np.uint8), connectivity=4)
+        dist = cv2.distanceTransform(np.pad(narrow.astype(np.uint8), 1), cv2.DIST_L2, 3)[1:-1, 1:-1]
+        keep = []
+        for c in range(1, n):
+            piece = lab == c
+            ys, xs = np.nonzero(piece)
+            length = max(ys.max() - ys.min() + 1, xs.max() - xs.min() + 1)
+            contact = (cv2.dilate(piece.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool) & core).sum()
+            jog = dist[piece].max() * 2 < sliver_px and contact >= 0.5 * length
+            if not jog:
+                keep.append(c)
+        narrow = np.isin(lab, keep)
+    return narrow
+
+
+def _passages(narrow, cell):
+    # the narrow pieces as (area m², length m, width m)
+    n, lab = cv2.connectedComponents(np.asarray(narrow, dtype=np.uint8), connectivity=4)
+    dist = cv2.distanceTransform(np.pad(np.asarray(narrow, dtype=np.uint8), 1), cv2.DIST_L2, 3)[1:-1, 1:-1]
+    out = []
+    for c in range(1, n):
+        piece = lab == c
+        ys, xs = np.nonzero(piece)
+        out.append((len(ys) * cell ** 2, max(ys.max() - ys.min() + 1, xs.max() - xs.min() + 1) * cell, 2 * dist[piece].max() * cell))
+    return out
+
+
+def _bad_passage(area, length, width, settings=SETTINGS):
+    # a narrow piece nobody can use: a thin strip (narrower than 60 cm), a long corridor, or a big narrow part.
+    # A short niche at least 60 cm wide (a wardrobe or desk niche) is allowed.
+    return (width < settings["min_niche_width_m"] and length > settings["min_niche_width_m"]) or \
+           length > settings["max_niche_m"] or area > settings["max_narrow_m2"]
+
+
+def widen_rooms(inst, types, m_per_px, settings=SETTINGS):
+    # 4e. Every part of a room narrower than 1.6 m (net, so 1.7 m on the model's grid) goes to the room it touches most:
+    #     no corridors you cannot walk through. The living room is done last. Balconies are left as they are.
+    inst = inst.copy()
+    inside = inst >= 0
+    widths = settings["min_clear_width_m"]
+    order = [i for i, t in enumerate(types) if t in widths and t != "living"] + [i for i, t in enumerate(types) if t == "living" and t in widths]
+    for i in order:
+        mask = inst == i
+        width_px = (widths[types[i]] + settings["interior_wall_m"]) / m_per_px
+        narrow = _narrow_part(mask, width_px, settings["sliver_m"] / m_per_px)
+        if not narrow.any() or narrow.sum() >= 0.8 * mask.sum():      # all of it is narrow: leave it (the check drops it)
+            continue
+        n, lab = cv2.connectedComponents(narrow.astype(np.uint8), connectivity=4)
+        for piece_id in range(1, n):
+            piece = lab == piece_id
+            ring = cv2.dilate(piece.astype(np.uint8), np.ones((3, 3), np.uint8)).astype(bool) & ~mask & inside
+            neighbours = inst[ring]
+            neighbours = [v for v in neighbours[neighbours >= 0].tolist() if types[v] != "balcony"]
+            for v, _ in Counter(neighbours).most_common():           # the neighbour it touches most that stays simple
+                inst[piece] = v
+                if types[v] == "living" or visible_corners(inst == v, m_per_px, settings) <= settings["max_corners"].get(types[v], 8):
+                    break
+                inst[piece] = i                                      # no: try the next neighbour
+    return _renumber(inst, types)
+
+
+def carve_kitchen(inst, types, kitchen_map, m_per_px, settings=SETTINGS):
+    # 4f. No kitchen at all: cut one (about 10 m²) from the living room, on an outer wall, where the model's kitchen
+    #     signal is strongest. Returns (inst, types) or None if there is no good place.
+    living = [i for i, t in enumerate(types) if t == "living"]
+    if not living:
+        return None
+    root = max(living, key=lambda i: (inst == i).sum())
+    L = inst == root
+    outside = inst < 0
+    signal = cv2.GaussianBlur(np.asarray(kitchen_map, dtype=np.float32), (0, 0), 2.0)
+    target = settings["carved_kitchen_m2"] / m_per_px ** 2
+    best = None
+    for dy, dx in [(1, 0), (-1, 0), (0, 1), (0, -1)]:                # the outer wall is above / below / left / right
+        wall_side = np.roll(outside, (dy, dx), axis=(0, 1)) & L      # living pixels with the outside on that side
+        ys, xs = np.nonzero(wall_side)
+        for y, x in zip(ys, xs):
+            for depth_m in (2.4, 3.0, 3.6):
+                d = int(round(depth_m / m_per_px))
+                w = int(round(target / d))
+                if dy != 0:                                          # wall above (dy=1) or below (dy=-1): grow down / up
+                    y0 = y if dy == 1 else y - d + 1
+                    box = (slice(max(y0, 0), y0 + d), slice(max(x - w // 2, 0), x - w // 2 + w))
+                else:
+                    x0 = x if dx == 1 else x - d + 1
+                    box = (slice(max(y - w // 2, 0), y - w // 2 + w), slice(max(x0, 0), x0 + d))
+                rect = np.zeros_like(L)
+                rect[box] = True
+                if rect.sum() < 0.8 * d * w or (rect & ~L).any():
+                    continue
+                score = float(signal[rect].mean())
+                if best is None or score > best[0]:
+                    best = (score, rect)
+    if best is None:
+        return None
+    rest = L & ~best[1]
+    n, lab = cv2.connectedComponents(rest.astype(np.uint8), connectivity=4)
+    if n < 2 or (lab == np.argmax(np.bincount(lab[lab > 0])) if n > 2 else lab == 1).sum() * m_per_px ** 2 < settings["min_room_m2"]["living"]:
+        return None
+    inst = inst.copy()
+    inst[best[1]] = len(types)
+    return _renumber(inst, list(types) + ["kitchen"])
+
+
 def _split_by_walls(mask, walls, settings=SETTINGS):
     # the model drew a wall across this room: the two biggest pieces on each side of it, or None
     if walls is None:
@@ -398,9 +602,16 @@ def fix_bedrooms(inst, types, wanted, m_per_px, settings=SETTINGS, walls=None):
     inst, types = inst.copy(), list(types)
     envelope = (inst >= 0) & ~np.isin(inst, [i for i, t in enumerate(types) if t == "balcony"])
     while True:
-        beds = [i for i, t in enumerate(types) if t == "bedroom"]
-        if len(beds) > wanted:
-            return None, None, "too many bedrooms"
+        beds = [i for i, t in enumerate(types) if t == "bedroom" and (inst == i).any()]
+        if len(beds) > wanted:                         # the smallest extra bedroom joins the room it touches most
+            smallest = min(beds, key=lambda i: (inst == i).sum())
+            before = (inst == smallest).sum()
+            inst = _merge_into_neighbour(inst, smallest, inst >= 0)
+            if (inst == smallest).sum() == before:
+                return None, None, "too many bedrooms"
+            inst, types = _renumber(inst, types)
+            envelope = (inst >= 0) & ~np.isin(inst, [i for i, t in enumerate(types) if t == "balcony"])
+            continue
         if len(beds) == wanted:
             break
         done = False
@@ -429,12 +640,7 @@ def fix_bedrooms(inst, types, wanted, m_per_px, settings=SETTINGS, walls=None):
             break
         if not done:
             return None, None, f"cannot fit {wanted} bedrooms"
-    for i, t in enumerate(types):              # every bedroom big enough (net, inside the walls)
-        if t == "bedroom":
-            area, width = _net_size(inst == i, envelope, m_per_px, settings)
-            if area < settings["min_bedroom_m2"] or width < settings["min_bedroom_width_m"]:
-                return None, None, "a bedroom is too small"
-    return inst, types, ""
+    return inst, types, ""                     # bedrooms too small: grow_bedrooms tries first, the check is after the walls
 
 
 def split_big_rooms(inst, types, m_per_px, rules, settings=SETTINGS, kinds=("bathroom",)):
@@ -549,6 +755,16 @@ def walls_doors_windows(inst, types, m_per_px, rules, settings=SETTINGS):
             r = _runs(inst, i, j)
             if r:
                 border[(i, j)] = border[(j, i)] = r[0]
+    # bathrooms: with one bathroom, its door opens to the living room; with more, at least one opens to the living
+    # room (the one with the longest wall on it) and the others to a bedroom (en-suite) if they touch one
+    baths = [i for i, t in enumerate(types) if t == "bathroom"]
+    to_living = [b for b in baths if any(types[u] == "living" and (u, b) in border for u in range(len(types)))]
+    public = max(to_living, key=lambda b: max((border[(u, b)][3] - border[(u, b)][2]) for u in range(len(types))
+                                                if types[u] == "living" and (u, b) in border)) if to_living else None
+    allowed = {}
+    for b in baths:
+        touches_bed = any(types[u] == "bedroom" and (u, b) in border for u in range(len(types)))
+        allowed[b] = {"living"} if b == public or len(baths) == 1 else ({"bedroom"} if touches_bed else {"living", "bedroom"})
     while len(reached) < len(types):
         best = None
         for v in range(len(types)):
@@ -557,6 +773,8 @@ def walls_doors_windows(inst, types, m_per_px, rules, settings=SETTINGS):
             for u in reached:
                 run = border.get((u, v))
                 if run is None:
+                    continue
+                if v in allowed and types[u] not in allowed[v]:
                     continue
                 width = settings["door_m"].get(types[v], 0.8)
                 if (run[3] - run[2]) * m_per_px < width + 0.2:
@@ -575,6 +793,7 @@ def walls_doors_windows(inst, types, m_per_px, rules, settings=SETTINGS):
                           "typical_percent": opens.get(types[v], {}).get(types[u], 0.0)})
         reached.add(v)
     unreached = [types[i] for i in range(len(types)) if i not in reached]
+    bathroom_to_living = not baths or (public is not None and public in reached)
 
     # --- windows: on the longest outer border of each room; the entrance on another outer border of the living room ---
     windows, windows_of, entrance = [], set(), None
@@ -599,7 +818,7 @@ def walls_doors_windows(inst, types, m_per_px, rules, settings=SETTINGS):
     rooms_f = [(t, (inst_f == i) & ~solid) for i, t in enumerate(types)]   # net rooms: up to the wall face, openings not counted
     return {"cell": cell, "walls": walls, "rooms": rooms_f, "doors": doors, "windows": windows, "rails": rails,
             "entrance": entrance, "outline": inside_f, "door_info": door_info, "unreached": unreached,
-            "windows_of": windows_of}
+            "windows_of": windows_of, "bathroom_to_living": bathroom_to_living}
 
 
 def score_layout(types, parts, m_per_px, rules, inst=None, settings=SETTINGS):
@@ -708,7 +927,7 @@ def mask_to_polygons(mask, cell, min_cells=4):
     return polygons
 
 
-def _plan_rooms(maps, sil_u8, bedrooms, balcony, m_per_px, rules, settings=SETTINGS):
+def _plan_rooms(maps, sil_u8, bedrooms, balcony, m_per_px, rules, settings=SETTINGS, carve=False):
     # steps 1-4c: the model's picture -> rooms on the model's grid (inst, types), or a reason why it was dropped
     label = room_labels(maps, np.asarray(sil_u8) > 127)
     rect = rectangles(label, m_per_px, settings)
@@ -722,12 +941,19 @@ def _plan_rooms(maps, sil_u8, bedrooms, balcony, m_per_px, rules, settings=SETTI
         return None, None, why, debug
     inst, types = split_big_rooms(inst, types, m_per_px, rules, settings)
     inst, types = limit_rooms(inst, types, bedrooms, settings)
+    if carve and "kitchen" not in types:                 # the last try: cut a kitchen from the living room
+        carved = carve_kitchen(inst, types, maps[ROOMS.index("kitchen")], m_per_px, settings)
+        if carved is not None:
+            inst, types = carved
     inst, types = straighten_rooms(inst, types, m_per_px, settings)
+    inst, types = widen_rooms(inst, types, m_per_px, settings)
+    inst, types = rectangle_rooms(inst, types, m_per_px, settings)
+    inst, types = grow_bedrooms(inst, types, m_per_px, settings)
     missing = [t for t in ["living", "kitchen", "bathroom"] if t not in types]
     if missing:                                          # every flat needs a living room, a kitchen and a bathroom
         return None, None, "no " + missing[0], debug
-    for i, t in enumerate(types):
-        if visible_corners(inst == i, m_per_px, settings) > settings["max_corners"].get(t, 8) + settings["corner_margin"]:
+    for i, t in enumerate(types):                        # the living room takes the leftover pieces: only a lower score
+        if t != "living" and visible_corners(inst == i, m_per_px, settings) > settings["max_corners"].get(t, 8) + settings["corner_margin"]:
             return None, None, f"a {t} has too many corners", debug
     outside = inst < 0
     for i, t in enumerate(types):                        # the kitchen is on an outer wall (window, ventilation)
@@ -743,13 +969,15 @@ def make_layout(maps, sil_u8, bedrooms, balcony, m_per_px, rules, settings=SETTI
     # The whole of step 3 for one picture of the model. Returns a layout (vectors in metres) or a reason why it was dropped.
     layout = {"ok": False, "reason": "", "bedrooms_asked": int(bedrooms), "balcony_asked": int(balcony)}
     k = ROOMS.index("kitchen")
-    for boost in settings["kitchen_boost"]:
+    for n_try, boost in enumerate(settings["kitchen_boost"]):
         # The model often draws the kitchen weakly next to the living room, and the living room wins (or a small
-        # kitchen floats inside it). Then the kitchen signal of the SAME picture is made stronger, and steps 1-4d run again.
+        # kitchen floats inside it). Then the kitchen signal of the SAME picture is made stronger, and steps 1-4f run
+        # again; at the last try a kitchen is cut from the living room.
         m = np.array(maps, dtype=np.float32)
         if boost != 1.0:
             m[k] = np.clip(m[k] * boost, 0, 1)
-        inst, types, why, dbg = _plan_rooms(m, sil_u8, bedrooms, balcony, m_per_px, rules, settings)
+        last = n_try == len(settings["kitchen_boost"]) - 1
+        inst, types, why, dbg = _plan_rooms(m, sil_u8, bedrooms, balcony, m_per_px, rules, settings, carve=last)
         if why not in ("no kitchen", "kitchen not on an outer wall"):
             break
     if debug:
@@ -759,6 +987,9 @@ def make_layout(maps, sil_u8, bedrooms, balcony, m_per_px, rules, settings=SETTI
         return layout
     layout["kitchen_boost"] = boost
     parts = walls_doors_windows(inst, types, m_per_px, rules, settings)
+    if not parts["bathroom_to_living"]:
+        layout["reason"] = "no bathroom opens to the living room"
+        return layout
     if parts["unreached"]:
         layout["reason"] = "no door to: " + ", ".join(parts["unreached"])
         return layout
@@ -769,6 +1000,12 @@ def make_layout(maps, sil_u8, bedrooms, balcony, m_per_px, rules, settings=SETTI
             width = min(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1) * cell if len(ys) else 0.0
             if mask.sum() * cell ** 2 < settings["min_bedroom_m2"] or width < settings["min_bedroom_width_m"]:
                 layout["reason"] = "a bedroom is too small"
+                return layout
+    for t, mask in parts["rooms"]:                       # 1.6 m between parallel walls, everywhere (net)
+        if t in settings["min_clear_width_m"] and mask.any():
+            narrow = _narrow_part(mask, settings["min_clear_width_m"][t] / cell, settings["sliver_m"] / cell)
+            if any(_bad_passage(*piece, settings) for piece in _passages(narrow, cell)):
+                layout["reason"] = f"a {t} is narrower than {settings['min_clear_width_m'][t]} m"
                 return layout
     bathrooms = [mask.sum() * cell ** 2 for t, mask in parts["rooms"] if t == "bathroom"]
     if max(bathrooms, default=0.0) < settings["min_main_bathroom_m2"]:

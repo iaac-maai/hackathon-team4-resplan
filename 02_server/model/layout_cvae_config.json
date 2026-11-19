@@ -1,6 +1,6 @@
 {
-  "model": "LayoutCVAE: conditional VAE, decoder sees the silhouette at 8, 16, 32, 64 and 128 pixels",
-  "weights": "layout_cvae.pt",
+  "model": "LayoutCVAE2: conditional VAE; the condition reaches every decoder layer (FiLM); wider decoder at 8-32 px",
+  "weights": "layout_cvae_v2.pt",
   "latent_dim": 32,
   "image_size": 128,
   "channels": [
@@ -31,14 +31,21 @@
   "generate": "z = random normal (latent_dim numbers); output = decode(z, silhouette, condition)",
   "beta": 0.008,
   "free_bits": 0.1,
-  "epochs_trained": 28,
-  "best_epoch": 20,
+  "epochs_trained": 51,
+  "best_epoch": 36,
   "check_on_validation": {
-    "counter check: real maps, bedrooms right": 0.975,
-    "invented: bedrooms right": 0.37333333333333335,
-    "invented: bedrooms right \u00b11": 0.8616666666666667,
-    "invented: balcony as asked": 0.9916666666666667,
-    "options differ (share of pixels)": 0.5833492376435343,
-    "code numbers in use (of 32)": 32.0
-  }
+    "invented: bedrooms right": 0.4588888888888889,
+    "invented: balcony as asked": 0.9455555555555556,
+    "options differ (share of pixels)": 0.5366756200795967,
+    "step 3: usable pictures of 30": 9.25,
+    "step 3: requests with 5 options": 0.925
+  },
+  "architecture": "v2",
+  "aux_weight": 0.0,
+  "v1_on_the_same_requests": {
+    "invented: bedrooms right": 0.3477777777777778,
+    "step 3: usable pictures of 30": 7.8,
+    "step 3: requests with 5 options": 0.85
+  },
+  "v2_is_better": true
 }
