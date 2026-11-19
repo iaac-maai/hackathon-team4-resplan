@@ -1,0 +1,20 @@
+# Cloudflare Pages project: the page (public/) + the API (functions/) + the D1 database
+name = "sketcheat-team4"
+pages_build_output_dir = "./public"
+compatibility_date = "2026-11-01"
+
+# Plain settings, readable by the functions as env.MODEL_URL
+[vars]
+# The layout server on Render (02_server), without a slash at the end
+MODEL_URL = "https://team4-layout-server.onrender.com"
+
+# The database (created with: npx wrangler d1 create hackathon-example-db)
+[[d1_databases]]
+binding = "DB"
+database_name = "hackathon-example-db"
+database_id = "c3031fea-aaee-48b6-b4f5-c906b7f01938"
+
+# No R2 bucket: the sketch thumbnails are stored in D1.
+# The password is NOT here: it is a secret.
+#   Local:  APP_PASSWORD=... in .dev.vars (never commit it)
+#   Online: npx wrangler pages secret put APP_PASSWORD
