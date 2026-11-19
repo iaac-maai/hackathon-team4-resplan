@@ -276,11 +276,12 @@ The model should therefore be considered an exploratory generative design tool r
 
 ## App and hand-in (Friday 10:00)
 
-- App: https://sketcheat-team4.pages.dev (password: in the course hand-in)
+- App: https://sketcheat-team4.pages.dev (sign up with any email, or use the test account in the course hand-in)
 - Model: https://team4-layout-server.onrender.com/health
 - Diagrams: [system](04_final/diagrams/1_system.md) · [user flow](04_final/diagrams/2_user_flow.md) · [sequence](04_final/diagrams/3_sequence.md)
 - Proofs: [04_final/PROOFS.md](04_final/PROOFS.md)
 - Privacy: https://sketcheat-team4.pages.dev/privacy.html
+- Accounts: email + password via Supabase Auth; each user sees only their own designs ([proofs 5 and 6](04_final/PROOFS.md))
 
 ### Three statements (written by the team)
 
