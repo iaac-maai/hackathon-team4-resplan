@@ -788,15 +788,28 @@ function drawPlan(p, labels = true) {
     if (!outer.length) return null;
     return centroid(outer.reduce((a, b) => (ringArea(b) > ringArea(a) ? b : a)));
   };
-  // circulation: dotted white lines from the entrance through the living room to every door
+  // circulation: dotted lines from the entrance into the living room, then door by door
+  // (a door between a bedroom and its balcony is reached through the bedroom, not through the wall)
   const living = p.rooms.filter((r) => r.type === "living").sort((a, b) => b.area_m2 - a.area_m2)[0];
   const hub = living && centre(living.polygons), entry = centre(p.entrance);
   if (hub) {
-    const pts = (p.doors || []).map((d) => centre([d])).filter(Boolean);
+    const links = doorLinks(p), at = { [p.rooms.indexOf(living)]: hub }, done = new Set();
     let d = entry ? `M${entry[0]} ${flip(entry[1])}L${hub[0]} ${flip(hub[1])}` : "";
-    for (const q of pts) d += `M${hub[0]} ${flip(hub[1])}L${q[0]} ${flip(q[1])}`;
+    const seg = (a, b) => (d += `M${a[0]} ${flip(a[1])}L${b[0]} ${flip(b[1])}`);
+    for (let grew = true; grew; ) {
+      grew = false;
+      links.forEach((l, j) => {
+        if (done.has(j) || l.a < 0) return;
+        const from = at[l.a] ? l.a : at[l.b] ? l.b : -1;
+        if (from < 0) return;
+        const to = from === l.a ? l.b : l.a;
+        seg(at[from], l.c); if (!at[to]) at[to] = l.c;
+        done.add(j); grew = true;
+      });
+    }
+    links.forEach((l, j) => { if (!done.has(j)) seg(hub, l.c); });   // doors we could not place: old style
     s += `<path d="${d}" fill="none" stroke="#C2603F" stroke-width="0.06" stroke-dasharray="0.08 0.14" stroke-linecap="round" opacity="0.95"/>`;
-    for (const q of pts) s += `<circle cx="${q[0]}" cy="${flip(q[1])}" r="0.07" fill="#C2603F"/>`;
+    for (const l of links) s += `<circle cx="${l.c[0]}" cy="${flip(l.c[1])}" r="0.07" fill="#C2603F"/>`;
   }
   for (const r of p.rooms) {
     if (r.area_m2 < 2.5) continue;
@@ -812,61 +825,156 @@ function drawPlan(p, labels = true) {
   return s + "</svg>";
 }
 
+// ---------- which rooms each door joins (from the drawing itself) ----------
+function segDist(px, py, [ax, ay], [bx, by]) {
+  const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+  const t = L ? Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / L)) : 0;
+  return Math.hypot(px - ax - t * dx, py - ay - t * dy);
+}
+function polyDist([x, y], polys) {
+  let m = Infinity;
+  for (const poly of polys || []) {
+    if (pointInRings(x, y, poly)) return 0;
+    for (const ring of poly) for (let i = 0; i < ring.length; i++) m = Math.min(m, segDist(x, y, ring[i], ring[(i + 1) % ring.length]));
+  }
+  return m;
+}
+// every door sits in a wall gap: the two rooms closest to its centre are the rooms it joins
+function doorLinks(p) {
+  return (p.doors || []).map((door) => {
+    const ring = door && door[0];
+    if (!ring || ring.length < 3) return null;
+    const c = centroid(ring);
+    const near = p.rooms.map((r, k) => ({ k, d: polyDist(c, r.polygons) })).filter((x) => x.d < 0.45).sort((a, b) => a.d - b.d);
+    return near.length >= 2 ? { a: near[0].k, b: near[1].k, c } : { a: -1, b: -1, c };
+  }).filter(Boolean);
+}
+// the room the front door opens into
+function entryRoomOf(p) {
+  const ring = p.entrance && p.entrance[0] && p.entrance[0][0];
+  if (!ring || ring.length < 3) return -1;
+  const c = centroid(ring);
+  let best = -1, bd = 0.6;
+  p.rooms.forEach((r, k) => { const d = polyDist(c, r.polygons); if (d < bd) { bd = d; best = k; } });
+  return best;
+}
+
 // ---------- the room connection diagram (from the doors) ----------
 function drawBubbles(o) {
   // One translucent circle per room (size = area), overlapping its neighbours,
   // with thin dashed lines between small dots: the style of a hand-drawn bubble diagram.
-  const NAME = { living: "Living Room", bedroom: "Bedroom", bathroom: "Bathroom", kitchen: "Kitchen", balcony: "Balcony" };
-  const rooms = o.rooms.filter((r) => r.area_m2 >= 1).map((r, i) => ({ ...r, i, r: 10 + Math.sqrt(r.area_m2) * 3.1, kids: [] }));
+  // Lines = real doors in the plan. Labels = the same names and areas as the plan.
+  const NAME = { living: "Living", bedroom: "Bedroom", bathroom: "Bath", kitchen: "Kitchen", balcony: "Balcony" };
+  const rooms = o.rooms.map((r, k) => ({ ...r, k, r: 5 + Math.sqrt(r.area_m2) * 3.6, kids: [], label: NAME[r.type] || esc(r.type) }))
+    .filter((r) => r.area_m2 >= 1);
+  rooms.forEach((r, i) => (r.i = i));
   if (!rooms.length) return "";
-  const nth = {};
-  rooms.forEach((r) => { nth[r.type] = (nth[r.type] || 0) + 1; r.label = NAME[r.type] || esc(r.type); r.n = nth[r.type]; });
-  rooms.forEach((r) => { if (nth[r.type] > 1) r.label += " " + r.n; });
-
-  // parent of each room: the room type it opens from (living first), shared out between rooms of that type
+  const byK = {}; rooms.forEach((r) => (byK[r.k] = r));
   const root = rooms.filter((r) => r.type === "living").sort((a, b) => b.area_m2 - a.area_m2)[0] || rooms[0];
-  const opensFrom = (t) => {
-    const from = (o.doors_info || []).filter((d) => d.to === t || d.from === t).map((d) => (d.to === t ? d.from : d.to)).filter((x) => x !== t);
-    if (t === "bathroom" && from.includes("bedroom")) return ["bedroom", ...from.filter((x) => x !== "bedroom")];   // en-suites first
-    return from.includes("living") ? ["living", ...from] : from;
-  };
-  const used = {};
-  const order = [...rooms].sort((a, b) => (a.type === "bathroom" || a.type === "balcony") - (b.type === "bathroom" || b.type === "balcony"));
-  const placed = new Set([root]);
-  for (const r of order) {
-    if (r === root) continue;
-    let parent = null;
-    for (const t of opensFrom(r.type)) {
-      const cands = rooms.filter((x) => x.type === t && placed.has(x) && x !== r);
-      if (!cands.length) continue;
-      if (r.type === "bathroom" && t === "bedroom") {      // one en-suite per bedroom
-        const free = cands.filter((x) => !used[x.i]);
-        if (!free.length) continue;
-        parent = free[0]; used[parent.i] = 1;
-      } else parent = cands[0];
-      break;
+
+  // which rooms are joined by a door
+  const geo = (o.doors || []).length && o.rooms.every((r) => r.polygons);
+  const links = [], seen = new Set();
+  let entryAt = root;
+  if (geo) {
+    for (const l of doorLinks(o)) {
+      const a = byK[l.a], b = byK[l.b];
+      if (!a || !b) continue;
+      const key = [a.i, b.i].sort((x, y) => x - y).join("|");
+      if (!seen.has(key)) { seen.add(key); links.push([a, b]); }
     }
-    parent = parent || root;
-    parent.kids.push(r); r.parent = parent; placed.add(r);
+    entryAt = byK[entryRoomOf(o)] || root;
   }
 
-  // layout: children fan out around their parent and overlap it a little
-  root.x = 0; root.y = 0;
-  const place = (p, a0, spread) => {
-    const n = p.kids.length;
-    p.kids.forEach((k, j) => {
-      const a = n === 1 ? a0 : a0 - spread / 2 + (spread * j) / (n - 1);
-      const d = (p.r + k.r) * 0.78;
-      k.x = p.x + d * Math.cos(a); k.y = p.y + d * Math.sin(a); k.a = a;
-      place(k, a, Math.PI * 0.55);
-    });
-  };
-  place(root, -Math.PI / 2, Math.PI * 2 * (1 - 1 / Math.max(root.kids.length, 1)));
+  const placed = new Set([root]);
+  if (geo && links.length) {
+    // tree for the drawing: walk out from the living room through the doors
+    const queue = [root];
+    while (queue.length) {
+      const p = queue.shift();
+      for (const [a, b] of links) {
+        const k = a === p ? b : b === p ? a : null;
+        if (!k || placed.has(k)) continue;
+        p.kids.push(k); k.parent = p; placed.add(k); queue.push(k);
+      }
+    }
+    for (const r of rooms) if (!placed.has(r)) { root.kids.push(r); r.parent = root; r.noDoor = true; placed.add(r); }
+  } else {
+    // no door drawing (e.g. edit mode): guess from which room types touch
+    const opensFrom = (t) => {
+      const from = (o.doors_info || []).filter((d) => d.to === t || d.from === t).map((d) => (d.to === t ? d.from : d.to)).filter((x) => x !== t);
+      return from.includes("living") ? ["living", ...from] : from;
+    };
+    const order = [...rooms].sort((a, b) => (a.type === "bathroom" || a.type === "balcony") - (b.type === "bathroom" || b.type === "balcony"));
+    for (const r of order) {
+      if (r === root) continue;
+      let parent = null;
+      for (const t of opensFrom(r.type)) {
+        const cands = rooms.filter((x) => x.type === t && placed.has(x) && x !== r);
+        if (cands.length) { parent = cands[0]; break; }
+      }
+      parent = parent || root;
+      parent.kids.push(r); r.parent = parent; placed.add(r);
+    }
+    for (const r of rooms) if (r.parent) links.push([r.parent, r]);
+  }
 
+  // layout: each bubble sits where its room is in the plan (same orientation, north stays up),
+  // sized like the room (circle of the same area), then nudged so bubbles overlap only a little
+  const S = 10;   // drawing units per metre
+  const posOf = (r) => {
+    if (r.pos) return r.pos;
+    const outer = (r.polygons || []).map((poly) => poly[0]).filter(Boolean);
+    return outer.length ? centroid(outer.reduce((m, q) => (ringArea(q) > ringArea(m) ? q : m))) : null;
+  };
+  const oriented = rooms.every((r) => (r.c = posOf(r)));
   let entry = null;
-  if ((o.entrance || []).length || (o.doors_info || []).length) {
-    // the entrance goes in the widest free gap around the living room
-    const angs = root.kids.map((k) => k.a).sort((a, b) => a - b);
+  if (oriented) {
+    for (const r of rooms) { r.r = Math.sqrt(r.area_m2 / Math.PI) * S; r.x = r.ox = r.c[0] * S; r.y = r.oy = -r.c[1] * S; }
+    const linked = new Set(links.map(([u, v]) => [u.i, v.i].sort((x, y) => x - y).join("|")));
+    for (let it = 0; it < 120; it++) {
+      for (let i = 0; i < rooms.length; i++) for (let j = i + 1; j < rooms.length; j++) {
+        const A = rooms[i], B = rooms[j];
+        let dx = B.x - A.x, dy = B.y - A.y, d = Math.hypot(dx, dy) || 0.01;
+        const big = Math.max(A.r, B.r), small = Math.min(A.r, B.r);
+        const minD = big + 0.35 * small;                       // the small room's dot stays outside the big circle
+        const maxD = linked.has(i + "|" + j) ? A.r + B.r - 0.15 * small : Infinity;   // rooms with a door overlap a bit
+        let push = 0;
+        if (d < minD) push = (minD - d) / 2; else if (d > maxD) push = -(d - maxD) / 4;
+        if (!push) continue;
+        dx /= d; dy /= d;
+        A.x -= dx * push; A.y -= dy * push; B.x += dx * push; B.y += dy * push;
+      }
+      for (const r of rooms) { r.x += (r.ox - r.x) * 0.04; r.y += (r.oy - r.y) * 0.04; }   // stay near the real place
+    }
+    const er = o.entrance && o.entrance[0] && o.entrance[0][0];
+    if (er && er.length >= 3) {
+      const c = centroid(er);
+      let ex = c[0] * S, ey = -c[1] * S;
+      // keep the entry dot just outside the room it opens into, on the side where the door is
+      let dx = ex - entryAt.ox, dy = ey - entryAt.oy; const d = Math.hypot(dx, dy) || 1;
+      dx /= d; dy /= d;
+      entry = { x: entryAt.x + dx * Math.max(entryAt.r * 1.25, d), y: entryAt.y + dy * Math.max(entryAt.r * 1.25, d) };
+    }
+  } else {
+    // no positions known: children fan out around their parent
+    root.x = 0; root.y = 0;
+    const place = (p, a0, spread) => {
+      const n = p.kids.length;
+      p.kids.forEach((k, j) => {
+        const a = n === 1 ? a0 : a0 - spread / 2 + (spread * j) / (n - 1);
+        const d = (p.r + k.r) * 0.8;
+        k.x = p.x + d * Math.cos(a); k.y = p.y + d * Math.sin(a); k.a = a;
+        place(k, a, Math.PI * 0.6);
+      });
+    };
+    place(root, -Math.PI / 2, Math.PI * 2 * (1 - 1 / Math.max(root.kids.length, 1)));
+  }
+
+  if (!entry && ((o.entrance || []).length || (o.doors_info || []).length)) {
+    // the entrance goes in the widest free gap around the room it opens into
+    const nb = links.filter(([a, b]) => a === entryAt || b === entryAt).map(([a, b]) => (a === entryAt ? b : a));
+    const angs = nb.map((k) => Math.atan2(k.y - entryAt.y, k.x - entryAt.x)).sort((a, b) => a - b);
     let best = Math.PI / 2;
     if (angs.length) {
       let gap = -1;
@@ -875,10 +983,10 @@ function drawBubbles(o) {
         if (next - a > gap) { gap = next - a; best = a + gap / 2; }
       });
     }
-    entry = { x: root.x + Math.cos(best) * root.r * 1.25, y: root.y + Math.sin(best) * root.r * 1.25 };
+    entry = { x: entryAt.x + Math.cos(best) * entryAt.r * 1.3, y: entryAt.y + Math.sin(best) * entryAt.r * 1.3 };
   }
-  const xs = rooms.flatMap((r) => [r.x - r.r, r.x + r.r]).concat(entry ? [entry.x - 20] : []);
-  const ys = rooms.flatMap((r) => [r.y - r.r, r.y + r.r]).concat(entry ? [entry.y + 8] : []);
+  const xs = rooms.flatMap((r) => [r.x - r.r, r.x + r.r]).concat(entry ? [entry.x - 20, entry.x + 20] : []);
+  const ys = rooms.flatMap((r) => [r.y - r.r, r.y + r.r]).concat(entry ? [entry.y + 10] : []);
   const pad = 6, x0 = Math.min(...xs) - pad, y0 = Math.min(...ys) - pad;
   const w = Math.max(...xs) - x0 + pad, h = Math.max(...ys) - y0 + pad;
 
@@ -888,16 +996,17 @@ function drawBubbles(o) {
     s += `<circle cx="${r.x}" cy="${r.y}" r="${r.r}" fill="${COLORS[r.type] || "#ddd"}" fill-opacity="0.62" ` +
          `stroke="#7A6F64" stroke-width="0.7" stroke-dasharray="2 1.6" style="mix-blend-mode:multiply"/>`;
   }
-  // connections
+  // connections: one line per door
   let lines = "";
-  for (const r of rooms) if (r.parent) lines += `M${r.parent.x} ${r.parent.y}L${r.x} ${r.y}`;
-  if (entry) lines += `M${entry.x} ${entry.y}L${root.x} ${root.y}`;
+  for (const [a, b] of links) lines += `M${a.x} ${a.y}L${b.x} ${b.y}`;
+  if (entry) lines += `M${entry.x} ${entry.y}L${entryAt.x} ${entryAt.y}`;
   s += `<path d="${lines}" stroke="#2f2d29" stroke-width="0.55" stroke-dasharray="1.6 1.4" fill="none"/>`;
-  // dots and labels
-  const fs = Math.max(4.6, w / 34);
+  // dots and labels: name + area, like the plan
+  const fs = Math.max(4.2, w / 36);
   for (const r of rooms) {
     s += `<circle cx="${r.x}" cy="${r.y}" r="1.4" fill="#2f2d29"/>`;
-    s += `<text x="${r.x}" y="${r.y - fs * 0.9}" text-anchor="middle" font-size="${fs}" fill="#2f2d29">${r.label}</text>`;
+    s += `<text x="${r.x}" y="${r.y - fs * 1.7}" text-anchor="middle" font-size="${fs}" fill="#2f2d29">` +
+         `<tspan x="${r.x}">${r.label}</tspan><tspan x="${r.x}" dy="1.15em" font-size="${fs * 0.8}" fill="#5a5148">${r.area_m2.toFixed(1)} m²</tspan></text>`;
   }
   if (entry) {
     s += `<circle cx="${entry.x}" cy="${entry.y}" r="1.4" fill="#2f2d29"/>` +
@@ -1027,7 +1136,7 @@ function renderEdit() {
   }
   const doors = Object.entries(touch).filter(([, n]) => n * CELL >= 0.8)
     .map(([key]) => { const [a, b] = key.split("|").map(Number); return { from: types[a], to: types[b] }; });
-  $("bubble").innerHTML = drawBubbles({ rooms: rooms.map((r) => ({ type: r.type, area_m2: r.area })), doors_info: doors, entrance: [] });
+  $("bubble").innerHTML = drawBubbles({ rooms: rooms.map((r) => ({ type: r.type, area_m2: r.area, pos: [r.cx, -r.cy] })), doors_info: doors, entrance: [] });
   const svg = $("editSvg");
   svg.addEventListener("pointerdown", onDown);
   svg.addEventListener("pointermove", onMove);
