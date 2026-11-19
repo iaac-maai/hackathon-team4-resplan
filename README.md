@@ -274,6 +274,17 @@ The model should therefore be considered an exploratory generative design tool r
 
 **Lessons learned:** AI tools were useful for accelerating development and making unfamiliar concepts easier to understand. However, their suggestions still required verification. In particular, debugging, checking tensor dimensions, validating model outputs, and interpreting evaluation metrics required direct testing. We learned to use AI as an assistant for understanding and problem-solving rather than relying on it as a substitute for technical judgement.
 
-## App
-Online: https://sketcheat-team4.pages.dev (password: ask the team)
+## App and hand-in (Friday 10:00)
 
+- App: https://sketcheat-team4.pages.dev (sign up with any email, or use the test account in the course hand-in)
+- Model: https://team4-layout-server.onrender.com/health
+- Diagrams: [system](04_final/diagrams/1_system.md) · [user flow](04_final/diagrams/2_user_flow.md) · [sequence](04_final/diagrams/3_sequence.md)
+- Proofs: [04_final/PROOFS.md](04_final/PROOFS.md)
+- Privacy: https://sketcheat-team4.pages.dev/privacy.html
+- Accounts: email + password via Supabase Auth; each user sees only their own designs ([proofs 5 and 6](04_final/PROOFS.md))
+
+### Three statements (written by the team)
+
+1. ...
+2. ...
+3. ...

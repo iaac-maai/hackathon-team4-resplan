@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy · Sketcheat</title>
+<style>
+  body { margin: 0; color: #2B2622; background: #FBF7F1; font: 15px/1.6 Inter, system-ui, "Segoe UI", sans-serif;
+         background-image: linear-gradient(#EFE5D8 1px, transparent 1px), linear-gradient(90deg, #EFE5D8 1px, transparent 1px); background-size: 24px 24px; }
+  main { max-width: 720px; margin: 32px auto; padding: 32px 36px; background: #fff; border-radius: 18px; box-shadow: 0 10px 30px rgba(60,40,25,.1); }
+  h1 { font-family: "Instrument Serif", Georgia, serif; font-weight: 400; font-size: 2.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1rem; margin: 26px 0 6px; } h2 i { font-style: normal; display: inline-grid; place-items: center; width: 22px; height: 22px;
+       border-radius: 50%; background: #C2603F; color: #fff; font-size: .72rem; margin-right: 8px; }
+  p, li { color: #4a423b; } .muted { color: #7A6F64; font-size: .85rem; } a { color: #C2603F; }
+  table { border-collapse: collapse; width: 100%; font-size: .9rem; } td, th { text-align: left; padding: 6px 8px; border-bottom: 1px solid #ECE3D7; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Privacy</h1>
+  <p class="muted">Sketcheat is a student project (IAAC, Master in AI for Architecture, Team 4), made for a one-week hackathon. Last updated: 19 November 2026.</p>
+
+  <h2><i>1</i>Who we are</h2>
+  <p>Team 4, IAAC Barcelona. Contact: <a href="mailto:hetashri.rajendrakumar.kalyani@students.iaac.net">hetashri.rajendrakumar.kalyani@students.iaac.net</a></p>
+
+  <h2><i>2</i>What data we keep</h2>
+  <ul>
+    <li>A small copy (200 px) of the sketch photo you upload.</li>
+    <li>What you asked for: area, number of bedrooms, balcony or not.</li>
+    <li>The layouts the model made, and the layouts you save (plan, score, DXF file).</li>
+    <li>Your account: email address and password. The password is stored only as a hash by Supabase, never by us in readable form.</li>
+    <li>Each design and saved layout is linked to your account, so only you can see it.</li>
+    <li>Two login cookies, so the app knows you are logged in. No tracking or analytics cookies, so no cookie banner.</li>
+  </ul>
+  <p>We do not ask for your name. Please do not draw personal information on your sketch.</p>
+
+  <h2><i>3</i>Why</h2>
+  <p>To make floor plan options from your sketch and to let you save and download them. Legal basis: our legitimate interest in running a course demo, and your choice to upload a sketch.</p>
+
+  <h2><i>4</i>Who else handles it</h2>
+  <table>
+    <tr><th>Service</th><th>What it does</th></tr>
+    <tr><td>Cloudflare</td><td>Hosts the app and stores your designs and saved layouts (D1 database).</td></tr>
+    <tr><td>Supabase</td><td>Keeps the accounts (email and password hash) and checks your login.</td></tr>
+    <tr><td>Render</td><td>Runs our layout model. Your full sketch photo is sent there to make the layouts.</td></tr>
+  </table>
+
+  <h2><i>5</i>Where it is stored</h2>
+  <p>Everything stays in the EU: designs in Cloudflare D1 (Western Europe), accounts in Supabase (Ireland), and the model server on Render in Frankfurt.</p>
+
+  <h2><i>6</i>How long</h2>
+  <p>Saved layouts stay until you delete them in the gallery. Your account stays until you ask us to delete it. All data is deleted when the course project ends (by 31 January 2027).</p>
+
+  <h2><i>7</i>Your rights</h2>
+  <p>You can ask to see, correct, delete or export your data, and withdraw your consent. Write to the contact email above; we answer within one month. You can delete a saved layout yourself in the gallery. To delete your whole account and all its data, write to the email above.</p>
+
+  <h2><i>8</i>How to complain</h2>
+  <p>To the Spanish data protection authority, AEPD: <a href="https://www.aepd.es">www.aepd.es</a>.</p>
+
+  <p class="muted" style="margin-top:28px"><a href="/">← Back to Sketcheat</a> · Student project, not legal advice.</p>
+</main>
+</body>
+</html>

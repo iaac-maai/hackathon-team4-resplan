@@ -11,11 +11,11 @@ export async function ensureTable(env) {
   await env.DB.prepare(
     "CREATE TABLE IF NOT EXISTS saved_layouts (id TEXT PRIMARY KEY, created_at TEXT NOT NULL, request_id TEXT NOT NULL, " +
     "area_m2 REAL NOT NULL, bedrooms INTEGER NOT NULL, balcony INTEGER NOT NULL, option_rank INTEGER NOT NULL, score REAL, " +
-    "summary TEXT, plan TEXT NOT NULL, dxf_base64 TEXT)",
+    "summary TEXT, plan TEXT NOT NULL, dxf_base64 TEXT, user_id TEXT)",
   ).run();
 }
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, data }) {
   await ensureTable(env);
   if (Number(request.headers.get("Content-Length") || 0) > 2 * 1024 * 1024) return bad("Too large.", 413);
   let body;
@@ -30,8 +30,8 @@ export async function onRequestPost({ request, env }) {
   if (!option || !Array.isArray(option.rooms)) return bad("No layout to save.");
   if (!(rank >= 1 && rank <= 20) || !(area >= 25 && area <= 400) || !(bedrooms >= 1 && bedrooms <= 5)) return bad("Wrong values.");
 
-  // the request must exist (design.js wrote it to the designs table)
-  const known = await env.DB.prepare("SELECT 1 FROM designs WHERE id = ?").bind(requestId).first();
+  // the request must exist AND belong to this user (design.js wrote it to the designs table)
+  const known = await env.DB.prepare("SELECT 1 FROM designs WHERE id = ? AND user_id = ?").bind(requestId, data.user.id).first();
   if (!known) return bad("Unknown request.");
 
   // only the parts of the plan the page needs to draw it again; room types from a fixed list
@@ -48,12 +48,12 @@ export async function onRequestPost({ request, env }) {
   const id = crypto.randomUUID();
   const createdAt = new Date().toISOString();
   await env.DB.prepare(
-    "INSERT INTO saved_layouts (id, created_at, request_id, area_m2, bedrooms, balcony, option_rank, score, summary, plan, dxf_base64) " +
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO saved_layouts (id, created_at, request_id, area_m2, bedrooms, balcony, option_rank, score, summary, plan, dxf_base64, user_id) " +
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(id, createdAt, requestId, area, bedrooms, balcony, rank,
           Number.isFinite(Number(option.score)) ? Number(option.score) : null,
-          JSON.stringify(option.summary ?? {}), JSON.stringify(plan), dxf)
+          JSON.stringify(option.summary ?? {}), JSON.stringify(plan), dxf, data.user.id)
     .run();
 
   return Response.json({ ok: true, id, created_at: createdAt });
