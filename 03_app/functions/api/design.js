@@ -3,7 +3,7 @@
 // option 1's drawing as JSON), 3. send the options back to the page. No R2 needed.
 const WANT_DXF = 1; // 0 = no DXF files (smaller, faster answer)
 
-export async function onRequestPost({ request, env }) {
+export async function onRequestPost({ request, env, data }) {
   const form = await request.formData();
   const photo = form.get("photo");
   const area = Number(form.get("area_m2"));
@@ -37,18 +37,18 @@ export async function onRequestPost({ request, env }) {
   }
   if (!answer.ok) return Response.json(answer); // e.g. no closed shape in the photo: nothing to save
 
-  // 2. One row in D1. The "?" placeholders keep user input out of the SQL text
+  // 2. One row in D1, owned by the logged-in user (id from the session, never from the browser). The "?" placeholders keep user input out of the SQL text
   const id = crypto.randomUUID();
   const best = answer.options[0];
   const bestPlan = { rooms: best.rooms, walls: best.walls, doors: best.doors, windows: best.windows,
                      rails: best.rails, entrance: best.entrance, outline: best.outline };
   const createdAt = new Date().toISOString();
   await env.DB.prepare(
-    "INSERT INTO designs (id, created_at, photo_thumb, area_m2, bedrooms, balcony, n_options, best_score, summary, best_plan) " +
-    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO designs (id, created_at, photo_thumb, area_m2, bedrooms, balcony, n_options, best_score, summary, best_plan, user_id) " +
+    "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(id, createdAt, thumb.startsWith("data:image/") && thumb.length < 60000 ? thumb : null, area, bedrooms, balcony, answer.options.length,
-          best.score ?? null, JSON.stringify(best.summary ?? {}), JSON.stringify(bestPlan))
+          best.score ?? null, JSON.stringify(best.summary ?? {}), JSON.stringify(bestPlan), data.user.id)
     .run();
 
   // 3. Answer the page

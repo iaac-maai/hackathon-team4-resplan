@@ -7,6 +7,8 @@ compatibility_date = "2026-11-01"
 [vars]
 # The layout server on Render (02_server), without a slash at the end
 MODEL_URL = "https://team4-layout-server.onrender.com"
+SUPABASE_URL = "https://cfzkjcxoiaqkxlhvruoe.supabase.co"
+SUPABASE_KEY = "sb_publishable_j7SYuRwrCuRV9fGsCvFIVw_JnSNP1nN"
 
 # The database (created with: npx wrangler d1 create hackathon-example-db)
 [[d1_databases]]
