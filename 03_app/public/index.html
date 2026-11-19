@@ -59,6 +59,13 @@
     .drop:hover { border-color: var(--accent); background: #FCF3EA; }
     .drop img { max-width: 80%; max-height: 180px; display: none; border-radius: 8px; box-shadow: 0 8px 18px rgba(60,40,25,.22); transform: rotate(-2deg); }
     .drop input { display: none; }
+    /* camera: take the photo of the sketch directly */
+    .photoBtns { display: flex; margin-top: 10px; }
+    .photoBtns .pill { flex: 1; padding: 10px 14px; font-size: .86rem; }
+    .camBox { margin-top: 10px; border-radius: 14px; overflow: hidden; background: #2B2622; }
+    .camBox video { width: 100%; max-height: 340px; object-fit: contain; display: block; }
+    .camHint { color: #fff; font-size: .8rem; text-align: center; padding: 8px 12px; }
+    .camRow { display: flex; gap: 8px; justify-content: center; padding: 10px; background: var(--card); }
     .inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
     .in { display: grid; gap: 2px; border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px; background: #fff; }
     .in span { font-size: .68rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--soft); }
@@ -215,6 +222,13 @@
           <img id="preview" alt="Your sketch">
           <span id="dropText">Click to choose a photo<br><small>one closed line, dark pen, seen from above</small></span>
         </label>
+        <div class="photoBtns"><button class="pill" id="camera" type="button">📷 Take a photo</button></div>
+        <input type="file" id="camFile" accept="image/*" capture="environment" hidden>
+        <div class="camBox" id="camBox" hidden>
+          <video id="video" playsinline muted></video>
+          <div class="camHint">Hold the camera straight above the drawing, with the whole outline inside the frame</div>
+          <div class="camRow"><button class="pill on" id="snap" type="button">Take it</button><button class="pill" id="camCancel" type="button">Cancel</button></div>
+        </div>
       </div>
       <div class="field">
         <p class="step"><i>2</i> What you need</p>
@@ -343,13 +357,51 @@ function toast(text) {
 fetch("/api/wake").catch(() => {});
 
 // ---------- the form ----------
-$("photo").addEventListener("change", () => {
-  const f = $("photo").files[0];
-  if (!f) return;
+function usePhoto(f) {
   lastFile = f;
   $("preview").src = URL.createObjectURL(f);
   $("preview").style.display = "block";
   $("dropText").textContent = f.name;
+  setMessage("");
+}
+$("photo").addEventListener("change", () => { const f = $("photo").files[0]; if (f) usePhoto(f); });
+
+// ---------- the camera ----------
+// phone: the phone's own camera app (capture="environment"); computer: the webcam inside the page.
+// The browser allows the webcam only on https (the app online) or on localhost.
+let stream = null;
+$("camFile").addEventListener("change", () => {
+  const f = $("camFile").files[0];
+  if (f) usePhoto(f);
+  $("camFile").value = "";                    // the same button can take another photo
+});
+$("camera").addEventListener("click", async () => {
+  const phone = matchMedia("(pointer: coarse)").matches;
+  if (phone || !(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) { $("camFile").click(); return; }
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } });
+  } catch (err) {
+    setMessage("The camera cannot be opened (no camera, or no permission). Choose a photo instead.", true);
+    return;
+  }
+  $("video").srcObject = stream;
+  $("camBox").hidden = false;
+  $("camera").hidden = true;
+  await $("video").play();
+});
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach((t) => t.stop()); stream = null; }
+  $("camBox").hidden = true;
+  $("camera").hidden = false;
+}
+$("camCancel").addEventListener("click", stopCamera);
+$("snap").addEventListener("click", () => {
+  const video = $("video");
+  if (!video.videoWidth) return;
+  const c = document.createElement("canvas");
+  c.width = video.videoWidth; c.height = video.videoHeight;
+  c.getContext("2d").drawImage(video, 0, 0);
+  c.toBlob((blob) => { stopCamera(); usePhoto(new File([blob], "camera photo.jpg", { type: "image/jpeg" })); }, "image/jpeg", 0.92);
 });
 $("balcony").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
@@ -381,7 +433,8 @@ async function thumbnail(file, side = 200) {   // small JPEG of the sketch, kept
 }
 
 async function generate() {
-  if (!lastFile) { show("screenForm"); setMessage("Choose a photo of the outline first.", true); return; }
+  if (!lastFile) { show("screenForm"); setMessage("Choose or take a photo of the outline first.", true); return; }
+  stopCamera();
   show("screenForm");
   $("go").disabled = true;
   $("progress").style.display = "block";
@@ -895,6 +948,7 @@ function startEdit() {
   $("planBox").classList.add("editing");
   $("edit").hidden = true;
   $("bubbleTitle").textContent = "Which rooms touch (edited)";
+  $("dxf").textContent = "Download DXF ↓ (the original, without your edits)";
   renderEdit();
 }
 
@@ -903,6 +957,7 @@ function stopEdit() {
   $("planBox").classList.remove("editing");
   $("edit").hidden = false;
   $("bubbleTitle").textContent = "How the rooms connect";
+  $("dxf").textContent = "Download DXF ↓";
 }
 
 function editSvg() {

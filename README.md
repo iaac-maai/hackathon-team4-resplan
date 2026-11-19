@@ -13,6 +13,7 @@ IAAC MaAI – AI Methods hackathon, 16–20 November 2026.
 | Autoencoder (Monday) | [`01_autoencoder/`](01_autoencoder/) · model on Hugging Face: https://huggingface.co/iaac-maai/hackathon-team4-resplan-ae |
 | Layout server, our model (Tuesday) | [`02_server/`](02_server/) · live: https://team4-layout-server.onrender.com |
 | Search server (Tuesday) | [`02_model_server/`](02_model_server/) · live: https://team4-resplan-server.onrender.com |
+| App: page + API + database (Wednesday) | [`03_app/`](03_app/) · live: https://sketcheat-team4.pages.dev (password: ask the team) |
 
 ## Model servers
 
