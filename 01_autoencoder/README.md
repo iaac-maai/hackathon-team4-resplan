@@ -20,9 +20,11 @@ A Conditional Variational Autoencoder (CVAE) trained on residential floor plans 
 
 The data is not in this repository. Put `ResPlan.pkl` in the `data/` folder at the root.
 
-## How to run
+## Training notebooks and deployed models
 
-Open [`notebook/02_autoencoder_clean_audited.ipynb`](notebook/02_autoencoder_clean_audited.ipynb) in Jupyter or VS Code and run the cells in order. It covers data preparation, training, evaluation, reconstruction, latent interpolation and the ONNX export.
+The Monday CVAE results documented here come from [`notebook/02_autoencoder_clean_audited.ipynb`](notebook/02_autoencoder_clean_audited.ipynb). The executed layout-model training notebook is [`notebook/04_layout_generator.ipynb`](notebook/04_layout_generator.ipynb); it contains the v1 baseline. The checked-in server configuration identifies the deployed artifact as LayoutCVAE v2, and `02_server/publish.py` exports a decoder to ONNX. The v2 source weights and per-epoch training history are not present in this checkout, so the baseline notebook's loss plot must not be read as the deployed v2 history or as a reproducible source for that artifact.
+
+Open the relevant notebook in Jupyter or VS Code and run its cells in order. The ResPlan dataset and model checkpoints are not included in this repository. The unrun v2/v3 experiment notebooks were removed rather than presented as completed experiments.
 
 ## Setups compared (same split)
 
@@ -41,6 +43,8 @@ CVAE_z64 has the lowest test objective. A bigger latent space (z128) did not imp
 ![CVAE latent interpolation](figures/cvae_z64_latent_blend.png)
 
 More figures (training curves for all three setups) are in the [root README](../README.md#5-visual-results) and in [`figures/`](figures/).
+
+The three curves above compare Monday CVAE variants only; the app's separate layout-model metrics and artifacts are documented in the [root README](../README.md#the-model-behind-sketcheat) and [`PIPELINE.md`](../PIPELINE.md).
 
 ## Limitations
 

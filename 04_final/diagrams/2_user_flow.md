@@ -2,8 +2,8 @@
 
 ```mermaid
 flowchart TD
-  S([Open sketcheat-team4.pages.dev]) --> L{Logged in?}
-  L -- no --> P[Log in or create account<br/>email + password] --> L
+  S([Open sketcheat-team4.pages.dev]) --> L{Supabase session valid?}
+  L -- no --> P[Log in or create an account<br/>email + password] --> L
   L -- yes --> F[Upload or take a photo of the outline<br/>+ area, bedrooms, balcony]
   F --> G[Generate layouts]
   G --> W[Loading screen<br/>model wakes up if asleep, ~1 min]

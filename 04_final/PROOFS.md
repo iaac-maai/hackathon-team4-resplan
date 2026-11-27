@@ -18,12 +18,12 @@ Expected: tables `designs` and `saved_layouts`, and at least one saved row.
 
 ![D1 tables](proofs/1_database.png)
 
-## 2 · Locked on the server
+## 2 · Protected API
 
 ```powershell
 curl.exe -i https://sketcheat-team4.pages.dev/api/saved
 ```
-Expected: `401` and `{"error":"Not logged in"}`, not our data.
+Expected: `401` and `{"error":"Not logged in"}` without a valid Supabase session.
 
 ![401 without password](proofs/2_locked.png)
 
@@ -49,23 +49,21 @@ Plus the answer to the agent prompt "Check my repo and my Cloudflare account for
 
 ![No secrets](proofs/4_no_secrets.png)
 
-## 5 · Accounts work
+## 5 · Generated layout
 
-Screenshots: create an account → logged in (email shown top right) → Log out → back on the login page.
-Also: log in with a wrong password → "Wrong email or password."
+The app screenshot shows a generated layout option with its score and room diagram.
 
-![Sign up](proofs/5_signup.png) ![Logged in](proofs/5_logged_in.png) ![Logged out](proofs/5_logged_out.png)
+![Generated layout option](proofs/5_layout_option_public.png)
 
 ## 6 · Own data only
 
-User A saves layouts. User B logs in (other browser or private window): B's gallery is empty and A's DXF link gives `Not found`.
-In the database, every saved row has an owner:
+Saved rows include an owner id. The gallery screenshot shows the saved-layout view.
 
 ```powershell
 npx wrangler d1 execute DB --remote --command "SELECT user_id, COUNT(*) FROM saved_layouts GROUP BY user_id"
 ```
 
-![User A gallery](proofs/6_user_a.png) ![User B gallery](proofs/6_user_b.png)
+![Saved layout gallery](proofs/6_gallery_public.png)
 
 ## Optional item
 
