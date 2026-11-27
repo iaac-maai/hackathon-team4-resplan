@@ -31,7 +31,7 @@ flowchart LR
 - **The zoning:** where the living room, bedrooms, bathrooms, kitchen and balcony go inside the drawn silhouette.
 - **Room sizes** and which rooms sit next to each other.
 - **Other random numbers → another plan** for the same silhouette. The "Show other options" button on the test page does this.
-- **Nothing is looked up:** the server holds no ResPlan plan, only the model file (`02_server/model/layout_decoder.onnx`, 3 MB). A hand-drawn silhouette is not in the data at all.
+- **Nothing is looked up:** the server holds no ResPlan plan, only the model file (`02_server/model/layout_decoder.onnx`, currently 9.4 MB in this repository). A hand-drawn silhouette is not in the data at all.
 
 ## What fixed rules do (not learned)
 

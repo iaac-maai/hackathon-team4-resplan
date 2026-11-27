@@ -1,5 +1,15 @@
 # hackathon-team4-resplan
 
+![Sketcheat turns a photographed outline into five generated layouts](01_autoencoder/figures/62_app_end_to_end.png)
+
+[Generated layout in the app](04_final/proofs/5_layout_option_public.png) · [Saved layout gallery](04_final/proofs/6_gallery_public.png)
+
+### Sketcheat screenshots
+
+![Generated layout option in Sketcheat](04_final/proofs/5_layout_option_public.png)
+
+![Saved layout gallery with download controls](04_final/proofs/6_gallery_public.png)
+
 IAAC MaAI – AI Methods hackathon, 16–20 November 2026.
 
 ## Team
@@ -13,7 +23,7 @@ IAAC MaAI – AI Methods hackathon, 16–20 November 2026.
 | Autoencoder (Monday) | [`01_autoencoder/`](01_autoencoder/) · model on Hugging Face: https://huggingface.co/iaac-maai/hackathon-team4-resplan-ae |
 | Layout server, our model (Tuesday) | [`02_server/`](02_server/) · live: https://team4-layout-server.onrender.com |
 | Search server (Tuesday) | [`02_model_server/`](02_model_server/) · live: https://team4-resplan-server.onrender.com |
-| App: page + API + database (Wednesday) | [`03_app/`](03_app/) · live: https://sketcheat-team4.pages.dev (password: ask the team) |
+| App: page + API + database (Wednesday) | [`03_app/`](03_app/) · live: https://sketcheat-team4.pages.dev (create an account with email + password) |
 
 ## Model servers
 
@@ -29,6 +39,53 @@ We run **two** servers on Render (free plan, Frankfurt). Both are defined in [`r
 | **API example** | [`02_server/call_api.ipynb`](02_server/call_api.ipynb) | [`02_model_server/call_api.ipynb`](02_model_server/call_api.ipynb) |
 
 Free services sleep after 15 minutes without requests; the first call then takes about one minute.
+
+## The model behind Sketcheat
+
+The app's live layout server uses the **LayoutCVAE v2** artifact in `02_server/model/`: a 32-dimensional conditional VAE decoder that produces eight 128 × 128 maps (living room, bedroom, bathroom, kitchen, balcony, wall, door and window). The decoder is conditioned on the outline mask and the requested area, bedroom count and balcony setting.
+
+```mermaid
+flowchart LR
+  P["Training target<br/>8-channel room map"] --> E["CVAE encoder"]
+  S["Outline mask"] --> E
+  C["Area + bedrooms + balcony"] --> E
+  E --> Z["32-dimensional latent z"]
+  Z --> D["Conditional decoder<br/>condition modulates each layer"]
+  S --> D
+  C --> D
+  D --> M["128 × 128 × 8 room maps"]
+  I["Photo of outline"] --> O["Photo → silhouette"]
+  O --> D
+  M --> R["Rules, vectorisation,<br/>ranking and DXF"]
+```
+
+At inference, the server samples `z`, sends it with the silhouette and request conditions to the ONNX decoder, then converts and filters its maps into vector plans. The checked-in model configuration records **51 epochs** (best epoch **36**); the loss combines weighted binary cross-entropy, Dice and KL terms.
+
+### Training and comparison evidence
+
+The executed notebook `01_autoencoder/notebook/04_layout_generator.ipynb` contains the training curve for the earlier LayoutCVAE baseline. It is not the per-epoch history of the v2 artifact deployed by the server; that v2 training history is not included in this repository. The v2 configuration does record validation performance, so the results below distinguish the two sources rather than treating them as interchangeable.
+
+![LayoutCVAE baseline training and validation losses](01_autoencoder/figures/42_cvae_training.png)
+
+The executed baseline's three beta trials compared the same validation score and raw bedroom-count accuracy. The selected trial used β = 0.008.
+
+```mermaid
+xychart-beta
+  title "LayoutCVAE baseline: validation trial score by beta"
+  x-axis ["0.0005", "0.002", "0.008"]
+  y-axis "Score (higher is better)" 0 --> 1.2
+  bar [1.05, 0.97, 1.09]
+```
+
+The deployed v2 artifact's saved validation checks report 46% exact bedroom-count agreement, 95% balcony agreement, 54% pixel difference between options, an average of 9.25 rule-usable maps per 30 generated, and five options for 92.5% of validation requests. These are validation checks, not held-out test-set scores.
+
+### Recorded outline test and failure
+
+The saved live-server API example in [`02_server/call_api.ipynb`](02_server/call_api.ipynb) requested a three-bedroom plan with a balcony. Across two rounds, the server generated 60 maps but only 4 passed its rules; it returned four ranked layouts with scores **0.87, 0.85, 0.84 and 0.84** instead of five. The other maps were rejected for bedroom count/size, balcony, kitchen or bathroom constraints. This is a single end-to-end example, not a held-out test-set aggregate; no broader test-outline score table is committed.
+
+![Raw generated layouts, including failures](01_autoencoder/figures/44_cvae_invented.png)
+
+The filter can reject most generated maps, and some valid-looking candidates still have awkward room arrangements. The scores are ranking heuristics, not architectural compliance checks. Plans need professional review and are not guaranteed to satisfy building codes or functional requirements.
 
 # ResPlan — Conditional Variational Autoencoder
 
@@ -166,7 +223,7 @@ How it works (notebooks [`04_layout_generator.ipynb`](01_autoencoder/notebook/04
 
 The model runs as ONNX on the layout server: https://team4-layout-server.onrender.com ([`02_server/`](02_server/)).
 
-**Limits:** the model often merges bedrooms that lie side by side, so the bedroom **count** is right in only about 37% of invented maps (86% within ±1), while the balcony follows the request in 99%. The clean-up step drops the wrong ones, so sometimes fewer than 5 options come back. The plans are a starting point for the architect, not a checked design.
+**Limits:** the deployed v2 model's saved validation checks show the requested bedroom count exactly in 46% of raw maps and the balcony correctly in 95%. Cleanup rejects maps that fail rules; the recorded server example returned only 4 options after generating 60 maps. The plans are a starting point for the architect, not a checked design.
 
 ### Monday: VAE blend
 
@@ -276,15 +333,27 @@ The model should therefore be considered an exploratory generative design tool r
 
 ## App and hand-in (Friday 10:00)
 
-- App: https://sketcheat-team4.pages.dev (sign up with any email, or use the test account in the course hand-in)
-- Model: https://team4-layout-server.onrender.com/health
-- Diagrams: [system](04_final/diagrams/1_system.md) · [user flow](04_final/diagrams/2_user_flow.md) · [sequence](04_final/diagrams/3_sequence.md)
+- App: https://sketcheat-team4.pages.dev (create an account with email + password; course test account details are distributed separately)
+- Layout model server: https://team4-layout-server.onrender.com/health
+- Search server: https://team4-resplan-server.onrender.com
+- Hugging Face model (Monday autoencoder): https://huggingface.co/iaac-maai/hackathon-team4-resplan-ae
+- Diagrams: [system](04_final/diagrams/1_system.md) · [user flow](04_final/diagrams/2_user_flow.md) · [sequences](04_final/diagrams/3_sequence.md) · [Wednesday diagrams and user stories](03_app/diagrams/)
 - Proofs: [04_final/PROOFS.md](04_final/PROOFS.md)
 - Privacy: https://sketcheat-team4.pages.dev/privacy.html
-- Accounts: email + password via Supabase Auth; each user sees only their own designs ([proofs 5 and 6](04_final/PROOFS.md))
+- Accounts: email + password via Supabase Auth; each user sees only their own designs ([proofs](04_final/PROOFS.md))
 
-### Three statements (written by the team)
+### What is clear
 
-1. ...
-2. ...
-3. ...
+The model can turn a photographed outline and a small set of requirements into several editable vector-layout candidates. The rules and ranking make the output more usable, but do not replace architectural judgement.
+
+### What is still unclear
+
+We have not established how reliably the generator works across a broad, held-out set of unusual outlines, and a high ranking score does not tell us whether a plan is comfortable, accessible or code-compliant.
+
+### What we would do next
+
+We would publish and version the exact deployed layout model on Hugging Face, then evaluate it on a documented held-out set of varied outlines with architects reviewing the plans and the failure cases.
+
+### Hosting status
+
+The live server currently loads its ONNX artifact from `02_server/model/`; the layout ONNX has not yet been published to Hugging Face. The linked Hugging Face repository is the Monday autoencoder model, not the live layout model. Do not remove the checked-in ONNX or switch the server to a Hugging Face URL until the layout artifact has actually been uploaded and verified.
